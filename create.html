@@ -10,6 +10,7 @@
   <meta property="og:title" content="Crea un invito 💌">
   <meta property="og:image" content="assets/og.png">
   <meta name="vibedating-api" content="">
+  <meta name="vibedating-links" content="">
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -29,13 +30,6 @@
       </div>
     </header>
 
-    <aside class="preview-pane" id="preview-pane">
-      <div class="preview-bar">
-        <span class="preview-label"><i data-icon="eye" data-size="18"></i><span data-t="preview"></span></span>
-        <button type="button" class="btn btn-ghost preview-close" id="preview-close" data-t-aria="previewClose"><i data-icon="x"></i></button>
-      </div>
-      <div class="card preview" id="preview" aria-hidden="true"></div>
-    </aside>
 
     <form id="form" class="builder-form" novalidate>
       <section class="card step" aria-labelledby="who-title">
@@ -92,10 +86,10 @@
             <h2 id="where-title" data-t="whereTitle"></h2>
             <p class="step-hint" data-t="whereHint"></p>
           </div>
+          <button type="button" class="btn btn-soft btn-icon step-action" id="add-place" data-t-tip="addPlace"><i data-icon="plus"></i></button>
         </header>
         <ol class="place-rows" id="places"></ol>
         <p class="field-error" id="places-err"></p>
-        <button type="button" class="btn btn-soft" id="add-place"><i data-icon="plus" data-size="18"></i><span data-t="addPlace"></span></button>
       </section>
 
       <section class="card step" aria-labelledby="when-title">
@@ -112,12 +106,12 @@
           <div class="chips" id="slots" role="group" aria-labelledby="slots-label"></div>
           <p class="field-error" id="slots-err"></p>
         </div>
-        <div class="custom-slot">
-          <div class="field">
-            <label class="field-label" for="custom-slot" data-t="customSlot"></label>
+        <div class="field custom-slot">
+          <label class="field-label" for="custom-slot" data-t="customSlot"></label>
+          <div class="custom-slot-row">
             <input class="input" id="custom-slot" type="time" step="300">
+            <button type="button" class="btn btn-soft btn-icon" id="add-slot" data-t-tip="addSlot"><i data-icon="plus"></i></button>
           </div>
-          <button type="button" class="btn btn-soft" id="add-slot"><i data-icon="plus" data-size="18"></i><span data-t="addSlot"></span></button>
         </div>
         <details class="more" id="more-options">
           <summary><i data-icon="sliders" data-size="18"></i><span data-t="moreOptions"></span></summary>
@@ -214,7 +208,6 @@
       </section>
     </form>
 
-    <button type="button" class="btn btn-primary preview-fab" id="preview-open"><i data-icon="eye" data-size="18"></i><span data-t="preview"></span></button>
   </div>
 </body>
 </html>

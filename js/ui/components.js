@@ -8,6 +8,10 @@ export function button(label, { variant = 'primary', block = false, class: cls =
   return h('button', { type: 'button', class: btnClass(variant, block, cls), ...rest }, btnBody(label, start, iconEnd));
 }
 
+export function iconButton(name, label, { variant = 'ghost', class: cls = '', size = 20, ...rest } = {}) {
+  return h('button', { type: 'button', class: `btn btn-${variant} btn-icon ${cls}`.trim(), 'aria-label': label, title: label, ...rest }, icon(name, { size }));
+}
+
 export function linkButton(label, href, { variant = 'soft', block = false, class: cls = '', icon: start, iconEnd, ...rest } = {}) {
   return h('a', { class: btnClass(variant, block, cls), href, ...rest }, btnBody(label, start, iconEnd));
 }
@@ -26,6 +30,10 @@ export function fill(root, dict) {
   for (const el of root.querySelectorAll('[data-t]')) el.textContent = dict[el.dataset.t] ?? '';
   for (const el of root.querySelectorAll('[data-t-ph]')) el.placeholder = dict[el.dataset.tPh] ?? '';
   for (const el of root.querySelectorAll('[data-t-aria]')) el.setAttribute('aria-label', dict[el.dataset.tAria] ?? '');
+  for (const el of root.querySelectorAll('[data-t-tip]')) {
+    el.setAttribute('aria-label', dict[el.dataset.tTip] ?? '');
+    el.title = dict[el.dataset.tTip] ?? '';
+  }
   for (const el of root.querySelectorAll('[data-icon]')) el.replaceWith(icon(el.dataset.icon, { size: Number(el.dataset.size) || 20 }));
 }
 
@@ -147,7 +155,8 @@ export const REPO_URL = 'https://github.com/itsjustwhitee/vibedating';
 
 export function siteFooter(text) {
   const label = h('span', {}, text);
-  const el = h('footer', { class: 'site-footer' }, icon('code', { size: 15 }), label, ' · ',
-    h('a', { href: REPO_URL, target: '_blank', rel: 'noopener noreferrer' }, 'GitHub'));
+  const el = h('footer', { class: 'site-footer' },
+    h('span', { class: 'site-footer-tag' }, icon('heart', { size: 14 }), 'Vibecoded, made for fun'),
+    h('a', { class: 'site-footer-link', href: REPO_URL, target: '_blank', rel: 'noopener noreferrer' }, icon('code', { size: 14 }), label));
   return { el, setText: (t) => { label.textContent = t; } };
 }

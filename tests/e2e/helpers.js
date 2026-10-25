@@ -50,7 +50,7 @@ export const inviteUrl = (base, cfg) => `${base}index.html#c=${encodeConfig(cfg)
 
 export async function newPage(browser, { fonts = false, ...opts } = {}) {
   const context = await browser.newContext({ timezoneId: 'Europe/Rome', locale: 'it-IT', ...opts });
-  const blocked = fonts ? /cdn\.jsdelivr\.net/ : /cdn\.jsdelivr\.net|fonts\.(googleapis|gstatic)\.com/;
+  const blocked = fonts ? /cdn\.jsdelivr\.net|photon\.komoot\.io/ : /cdn\.jsdelivr\.net|photon\.komoot\.io|fonts\.(googleapis|gstatic)\.com/;
   await context.route(blocked, (route) => route.abort());
   const page = await context.newPage();
   return { context, page };
@@ -81,16 +81,33 @@ export async function shot(page, name) {
   await page.screenshot({ path: join(SCREENS_DIR, `${name}.png`), fullPage: true });
 }
 
-export async function openBuilder(browser, base, { siteApi = '', ...opts } = {}) {
+export const PHOTON = /photon\.komoot\.io\/api/;
+
+export const photonFeature = (name, street, housenumber, city) => ({
+  type: 'Feature',
+  geometry: { type: 'Point', coordinates: [12.5, 41.9] },
+  properties: { name, street, housenumber, city, country: 'Italia', osm_key: 'amenity', osm_value: 'restaurant' },
+});
+
+export async function mockPhoton(page, features) {
+  const queries = [];
+  await page.route(PHOTON, (route) => {
+    queries.push(new URL(route.request().url()));
+    return route.fulfill({ contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ type: 'FeatureCollection', features }) });
+  });
+  return queries;
+}
+
+export async function openBuilder(browser, base, { siteApi = '', advanced = false, ...opts } = {}) {
   const { context, page } = await newPage(browser, { viewport: { width: 1280, height: 900 }, ...opts });
   if (siteApi) {
-    await page.route(/create\.html$/, async (route) => {
+    await page.route(/create\.html(\?.*)?$/, async (route) => {
       const res = await route.fetch();
       const body = (await res.text()).replace('<meta name="vibedating-api" content="">', `<meta name="vibedating-api" content="${siteApi}">`);
       await route.fulfill({ response: res, body });
     });
   }
-  await page.goto(`${base}create.html`);
+  await page.goto(`${base}create.html${advanced ? '?advanced' : ''}`);
   await page.evaluate(() => localStorage.clear());
   await page.reload();
   return { context, page };

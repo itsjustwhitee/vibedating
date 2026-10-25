@@ -1,7 +1,7 @@
 import test from 'node:test';
 import { join } from 'node:path';
 import { chromium } from 'playwright';
-import { startServer, newPage, sampleConfig, inviteUrl, shot, openBuilder, SCREENS_DIR, API } from './helpers.js';
+import { startServer, newPage, sampleConfig, inviteUrl, shot, openBuilder, mockPhoton, photonFeature, SCREENS_DIR, API } from './helpers.js';
 
 const SIZES = { mobile: { width: 390, height: 844 }, desktop: { width: 1280, height: 800 } };
 const NOW = new Date('2026-10-25T20:10:00+01:00');
@@ -87,9 +87,14 @@ async function invite(browser, server, tag, viewport, colorScheme) {
 }
 
 async function builder(browser, server, tag, viewport, colorScheme) {
-  const { context, page } = await openBuilder(browser, server.base, { viewport, colorScheme, fonts: true, siteApi: API });
+  const { context, page } = await openBuilder(browser, server.base, { viewport, colorScheme, fonts: true, siteApi: API, advanced: true });
   await page.route(API, (route) => route.fulfill({ contentType: 'application/json', body: '{"ok":true}' }));
+  await mockPhoton(page, [
+    photonFeature('Ristorante Pizzeria Montebello', 'Via Montebello', '77', 'Roma'),
+    photonFeature('Pizzeria da Roberto', 'Via Montebello', '13', 'Rovigo'),
+  ]);
   const settle = () => page.waitForTimeout(450);
+  const viewShot = (name) => page.screenshot({ path: join(SCREENS_DIR, `${tag}-${name}.png`) });
   const steps = async (name) => {
     const all = page.locator('.step');
     for (let i = 0; i < await all.count(); i++) {
@@ -99,32 +104,38 @@ async function builder(browser, server, tag, viewport, colorScheme) {
   await page.evaluate(() => document.fonts.ready);
   await settle();
   await shot(page, `${tag}-create`);
-  if (tag.startsWith('mobile')) {
-    await steps('create');
-    await page.click('#preview-open');
-    await settle();
-    await page.screenshot({ path: join(SCREENS_DIR, `${tag}-create-preview.png`) });
-    await page.click('#preview-close');
-  }
+  if (tag.startsWith('mobile')) await steps('create');
   await page.click('#build');
   await settle();
   await shot(page, `${tag}-create-errors`);
   await page.fill('#to', 'Saro');
   await page.fill('#from', 'Ciuchi');
-  await page.fill('.place-row [data-key="name"]', 'Sushi Sapporo');
-  await page.fill('.place-row [data-key="note"]', 'Nigiri al bancone, uno dopo l’altro');
+  await page.locator('.place-row [data-key="name"]').scrollIntoViewIfNeeded();
+  await page.fill('.place-row [data-key="name"]', 'Pizzeria Montebello');
+  await page.waitForSelector('.suggest:not([hidden])');
+  await page.keyboard.press('ArrowDown');
+  await settle();
+  await viewShot('create-places-suggest');
+  await page.keyboard.press('Enter');
+  await page.fill('.place-row [data-key="note"]', 'Forno a legna e cornicione che scrocchia');
   await page.click('#add-place');
-  await page.fill('.place-row >> nth=1 >> [data-key="emoji"]', '🍜');
   await page.fill('.place-row >> nth=1 >> [data-key="name"]', 'Hideo Ramen');
+  await page.click('.place-row >> nth=1 >> .emoji-btn');
+  await settle();
+  await viewShot('create-emoji-picker');
+  await page.keyboard.press('Escape');
+  await page.click('.place-row >> nth=0 >> .place-more summary');
   await page.click('#texts summary');
   await page.click('#more-options summary');
   await page.check('input[name="delivery"][value="link"]');
   await page.click('#build');
+  await page.waitForSelector('#result:not([hidden])');
   await settle();
   await shot(page, `${tag}-create-link`);
   if (tag.startsWith('mobile')) await steps('create-filled');
   await page.check('input[name="delivery"][value="email"]');
   await page.fill('#owner', 'ciuchi@example.com');
+  await page.locator('.step >> nth=3').screenshot({ path: join(SCREENS_DIR, `${tag}-create-delivery.png`) });
   await page.click('#build');
   await page.waitForSelector('#sent:not([hidden])');
   await settle();
@@ -136,7 +147,6 @@ async function builder(browser, server, tag, viewport, colorScheme) {
   await context.close();
 
   const plain = await openBuilder(browser, server.base, { viewport, colorScheme, fonts: true });
-  await plain.page.click('#advanced summary');
   await plain.page.waitForTimeout(300);
   await plain.page.locator('.step >> nth=3').screenshot({ path: join(SCREENS_DIR, `${tag}-create-nometa.png`) });
   await plain.context.close();

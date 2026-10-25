@@ -3,6 +3,10 @@ var MAX_CONFIG = 8000;
 var DAY_MS = 86400000;
 var CONFIG_KEYS = ['v', 'lang', 'to', 'from', 'q', 'places', 'slots', 'duration', 'days', 'tz', 'done', 'api', 'owner'];
 var DROPPED_KEYS = ['sig', 'exp', 'k'];
+// Compact `#y=` wire form, kept in step with js/config.js: positional, 0 = absent or default.
+var WIRE = [['to'], ['from'], ['places'], ['slots'], ['q'], ['done'], ['lang', 'it'], ['duration', 120],
+  ['days', 60], ['tz', 'Europe/Rome'], ['api'], ['k'], ['sig'], ['owner'], ['exp']];
+var PLACE_WIRE = ['name', 'emoji', 'note', 'address', 'maps'];
 
 var TEXT = {
   it: {
@@ -13,7 +17,7 @@ var TEXT = {
     ignore: "Se non l'hai richiesto tu, ignora questa email.",
     yesSubject: 'Ha detto sì! {place}, {date} alle {time}',
     guest: 'Ospite',
-    place: 'Posto',
+    place: 'Luogo',
     when: 'Quando',
     calendar: 'Aggiungi a Google Calendar'
   },
@@ -88,11 +92,12 @@ function preparePersonalAccept_(req) {
 
 function prepareCreate_(req) {
   var p = props_();
-  if (!p.SIGNING_SECRET || !/^https:\/\/[^\s#]+$/.test(p.SITE_URL || '') || !isHttps_(p.API_URL)) fail_('not_configured');
-  var c = validateConfig_(req.config, p.API_URL.trim());
+  if (!p.SIGNING_SECRET || !/^https:\/\/[^\s#]+$/.test(p.SITE_URL || '')) fail_('not_configured');
+  var c = validateConfig_(req.config);
+  delete c.api;
   c.exp = Math.floor(new Date().getTime() / 1000) + limit_(p.LINK_DAYS, 60) * 86400;
   c.sig = sign_(c, p.SIGNING_SECRET);
-  var link = p.SITE_URL + '#c=' + b64url_(JSON.stringify(c));
+  var payload = pack_(c);
   var t = textFor_(c.lang);
   var exp = Utilities.formatDate(new Date(c.exp * 1000), c.tz, 'yyyy-MM-dd');
   var intro = t.linkBody.replace('{exp}', exp);
@@ -102,6 +107,8 @@ function prepareCreate_(req) {
       { scope: 'create:' + c.owner, max: limit_(p.OWNER_DAILY_LIMIT, 3) }
     ],
     run: function () {
+      var id = storeLink_(p, payload);
+      var link = p.SITE_URL + (id ? '#i=' + id : '#y=' + payload);
       MailApp.sendEmail(c.owner, t.linkSubject, intro + '\n\n' + link + '\n\n' + t.ignore, {
         name: senderName_(p),
         htmlBody: '<p>' + html_(intro) + '</p><p><a href="' + html_(link) + '">' + html_(link) + '</a></p><p>' + html_(t.ignore) + '</p>'
@@ -162,7 +169,7 @@ function prepareMultiAccept_(req) {
   };
 }
 
-function validateConfig_(raw, apiUrl) {
+function validateConfig_(raw) {
   if (!isObject_(raw) || JSON.stringify(raw).length > MAX_CONFIG) fail_('bad_request');
   Object.keys(raw).forEach(function (k) {
     if (CONFIG_KEYS.indexOf(k) < 0 && DROPPED_KEYS.indexOf(k) < 0) fail_('bad_request');
@@ -170,8 +177,8 @@ function validateConfig_(raw, apiUrl) {
   if (raw.v !== 1) fail_('bad_request');
   if (raw.lang !== undefined && raw.lang !== 'it' && raw.lang !== 'en') fail_('bad_request');
   if (raw.api !== undefined && !isHttps_(raw.api)) fail_('bad_request');
-  var c = { v: 1, owner: email_(raw.owner).toLowerCase() };
-  if (raw.lang) c.lang = raw.lang;
+  // Defaults are spelled out so the signed object matches what the compact link expands to.
+  var c = { v: 1, owner: email_(raw.owner).toLowerCase(), lang: raw.lang || 'it' };
   [['to', 40], ['from', 40], ['q', 140], ['done', 200]].forEach(function (f) {
     var s = text_(raw[f[0]], f[1], 'bad_request');
     if (s) c[f[0]] = s;
@@ -196,7 +203,7 @@ function validateConfig_(raw, apiUrl) {
   c.duration = int_(raw.duration, 120, 30, 360);
   c.days = int_(raw.days, 60, 1, 180);
   c.tz = raw.tz === undefined ? 'Europe/Rome' : canonTz_(raw.tz) || fail_('bad_request');
-  c.api = apiUrl;
+  if (raw.api !== undefined) c.api = raw.api.trim();
   return c;
 }
 
@@ -326,8 +333,66 @@ function safeEqual_(a, b) {
   return diff === 0;
 }
 
-function b64url_(s) {
-  return Utilities.base64EncodeWebSafe(s, Utilities.Charset.UTF_8).replace(/=+$/, '');
+function pack_(c) {
+  var blob = Utilities.gzip(Utilities.newBlob(JSON.stringify(wire_(c)), 'application/json'));
+  return Utilities.base64EncodeWebSafe(rawDeflate_(blob.getBytes())).replace(/=+$/, '');
+}
+
+function wire_(c) {
+  return trimZeros_(WIRE.map(function (f) {
+    var v = c[f[0]];
+    if (f[0] === 'places') return v.map(placeWire_);
+    if (f[0] === 'slots') return v.join('').replace(/:/g, '');
+    if (f[0] === 'lang') return v === 'en' ? 1 : 0;
+    return v === undefined || v === f[1] ? 0 : v;
+  }));
+}
+
+function placeWire_(pl) {
+  var derived = 'https://www.google.com/maps/search/?api=1&query=' +
+    encodeURIComponent([pl.name, pl.address].filter(Boolean).join(', '));
+  return trimZeros_(PLACE_WIRE.map(function (k) {
+    if (k === 'maps' && pl.maps && pl.maps === derived) return 1;
+    return pl[k] === undefined ? 0 : pl[k];
+  }));
+}
+
+function trimZeros_(arr) {
+  while (arr.length && arr[arr.length - 1] === 0) arr.pop();
+  return arr;
+}
+
+// Utilities has no raw deflate: strip the gzip header (RFC 1952) and the 8 byte trailer.
+// Bytes are signed, hence the masks.
+function rawDeflate_(bytes) {
+  var flags = bytes[3] & 255;
+  var pos = 10;
+  if (flags & 4) pos += 2 + ((bytes[pos] & 255) | ((bytes[pos + 1] & 255) << 8));
+  [8, 16].forEach(function (bit) {
+    if (flags & bit) while (pos < bytes.length && bytes[pos++] !== 0) {}
+  });
+  if (flags & 2) pos += 2;
+  return bytes.slice(pos, bytes.length - 8);
+}
+
+// Optional short link store (worker/): returns the id, or '' to fall back to the long link.
+function storeLink_(p, payload) {
+  if (!isHttps_(p.LINKS_URL) || !p.LINKS_SECRET) return '';
+  try {
+    var res = UrlFetchApp.fetch(p.LINKS_URL.trim(), {
+      method: 'post',
+      contentType: 'text/plain',
+      payload: JSON.stringify({ p: payload }),
+      headers: { Authorization: 'Bearer ' + p.LINKS_SECRET },
+      muteHttpExceptions: true
+    });
+    var out = JSON.parse(res.getContentText());
+    if (res.getResponseCode() === 200 && out && out.ok && /^[A-Za-z0-9]{1,32}$/.test(out.id)) return out.id;
+    console.error('link store: ' + res.getResponseCode() + ' ' + (out && out.error));
+  } catch (err) {
+    console.error('link store: ' + ((err && err.message) || err));
+  }
+  return '';
 }
 
 function utcStamp_(d) {

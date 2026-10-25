@@ -1,4 +1,4 @@
-import { readConfigFromHash, buildInviteUrl, configMode } from './config.js';
+import { readConfigFromHash, buildInviteUrl, configMode, isStoredLink } from './config.js';
 import { todayISO, addDaysISO, zonedToUtc, formatDateLong } from './dates.js';
 import { googleCalendarUrl, buildIcs } from './calendar.js';
 import { postJson, createAttempt, buildAcceptPayload } from './api.js';
@@ -25,7 +25,13 @@ const DEMO = {
 };
 
 const app = $('#app');
-const parsed = readConfigFromHash(location.hash);
+const meta = (name) => document.querySelector(`meta[name="${name}"]`)?.content.trim() || '';
+const background = hearts();
+document.body.prepend(background);
+// A short `#i=` link needs the store first: show the waiting screen in the viewer's language meanwhile.
+if (isStoredLink(location.hash)) mount(app, waiting('loading', strings(savedLang() || detectLang()).s.loading));
+const parsed = await readConfigFromHash(location.hash, { siteApi: meta('vibedating-api'), linksApi: meta('vibedating-links') });
+const demoUrl = await buildInviteUrl(location.href, DEMO);
 let lang = savedLang() || parsed.cfg?.lang || detectLang();
 let { s, t } = strings(lang);
 let rerender = () => {};
@@ -41,15 +47,23 @@ function setLang(code) {
 const footer = siteFooter(s.footer);
 setLang(lang);
 document.body.append(footer.el);
-document.body.prepend(hearts(), h('div', { class: 'topbar' }, langToggle(lang, (code) => {
+background.after(h('div', { class: 'topbar' }, langToggle(lang, (code) => {
   saveLang(code);
   setLang(code);
   rerender();
 }, s.language)));
 addEventListener('hashchange', () => location.reload());
 if (parsed.error === 'missing') landing();
-else if (parsed.error) failure();
+else if (parsed.error) failure(parsed.error);
 else invite(parsed.raw, parsed.cfg);
+
+function waiting(name, title) {
+  return h('section', { class: `card screen enter screen-${name}`, 'data-screen': name, 'aria-busy': 'true' },
+    h('div', { class: 'sending' },
+      h('div', { class: 'plate', 'aria-hidden': 'true' }, h('span', {}, '🍷'), h('span', {}, '🕯️'), h('span', {}, '🍷')),
+      h('h1', { tabindex: '-1' }, title),
+    ));
+}
 
 function landing() {
   rerender = landing;
@@ -59,20 +73,24 @@ function landing() {
     title: s.landingTitle,
     hint: s.landingText,
     foot: [
-      linkButton(s.landingDemo, buildInviteUrl(location.href, DEMO), { variant: 'ghost', icon: 'eye' }),
+      linkButton(s.landingDemo, demoUrl, { variant: 'ghost', icon: 'eye' }),
       linkButton(s.landingCreate, 'create.html', { variant: 'primary', iconEnd: 'arrow-right' }),
     ],
   }));
 }
 
-function failure() {
-  rerender = failure;
+// Store answers: `not_found` (expired or unknown id) and network trouble get their own words.
+function failure(code) {
+  rerender = () => failure(code);
+  const text = code === 'not_found' ? s.expired : ['network', 'timeout', 'server'].includes(code) ? s.unreachable : s.broken;
   mount(app, screen({
     name: 'error',
     head: [seal()],
-    title: s.errorTitle,
-    hint: s.errorText,
-    foot: [linkButton(s.errorHome, location.pathname, { variant: 'soft', icon: 'arrow-left' })],
+    title: text.title,
+    hint: text.text,
+    foot: [text === s.unreachable
+      ? button(s.retry, { variant: 'soft', icon: 'refresh', onClick: () => location.reload() })
+      : linkButton(s.errorHome, location.pathname, { variant: 'soft', icon: 'arrow-left' })],
   }));
 }
 
@@ -272,11 +290,7 @@ function invite(raw, cfg) {
   }
 
   function sending() {
-    return h('section', { class: 'card screen enter screen-sending', 'data-screen': 'sending', 'aria-busy': 'true' },
-      h('div', { class: 'sending' },
-        h('div', { class: 'plate', 'aria-hidden': 'true' }, h('span', {}, '🍷'), h('span', {}, '🕯️'), h('span', {}, '🍷')),
-        h('h1', { tabindex: '-1' }, s.sending),
-      ));
+    return waiting('sending', s.sending);
   }
 
   function done() {

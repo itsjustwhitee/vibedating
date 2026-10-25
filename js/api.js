@@ -1,4 +1,4 @@
-export async function postJson(url, body, { timeoutMs = 12000, fetchImpl = globalThis.fetch } = {}) {
+async function fetchJson(url, init, { timeoutMs = 12000, fetchImpl = globalThis.fetch } = {}) {
   const ctrl = new AbortController();
   let timedOut = false;
   const timer = setTimeout(() => {
@@ -6,13 +6,7 @@ export async function postJson(url, body, { timeoutMs = 12000, fetchImpl = globa
     ctrl.abort();
   }, timeoutMs);
   try {
-    const res = await fetchImpl(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(body),
-      redirect: 'follow',
-      signal: ctrl.signal,
-    });
+    const res = await fetchImpl(url, { ...init, signal: ctrl.signal });
     let json;
     try {
       json = JSON.parse(await res.text());
@@ -26,6 +20,30 @@ export async function postJson(url, body, { timeoutMs = 12000, fetchImpl = globa
   } finally {
     clearTimeout(timer);
   }
+}
+
+export const postJson = (url, body, opts) => fetchJson(url, {
+  method: 'POST',
+  headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+  body: JSON.stringify(body),
+  redirect: 'follow',
+}, opts);
+
+const LINK_ID = /^[A-Za-z0-9]{1,32}$/;
+const linkStoreUrl = (base, id = '') => `${String(base).replace(/\/+$/, '')}${id && `/${id}`}`;
+
+// The link store is optional: any failure leaves the caller with its long link.
+export async function storeLink(base, payload, { timeoutMs = 6000, ...opts } = {}) {
+  if (!base) return '';
+  const res = await postJson(linkStoreUrl(base), { p: payload }, { timeoutMs, ...opts });
+  return res.ok && LINK_ID.test(res.id) ? res.id : '';
+}
+
+export async function loadLink(base, id, { timeoutMs = 8000, ...opts } = {}) {
+  if (!base || !LINK_ID.test(id)) return { ok: false, error: 'not_found' };
+  const res = await fetchJson(linkStoreUrl(base, id), { method: 'GET' }, { timeoutMs, ...opts });
+  if (res.ok && typeof res.p !== 'string') return { ok: false, error: 'not_found' };
+  return res;
 }
 
 export function newRequestId() {

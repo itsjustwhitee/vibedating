@@ -2,11 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createGas } from '../../dev/gas-emulator.js';
-import { decodeConfig, normalizeConfig } from '../../js/config.js';
+import { unpackCompact, normalizeConfig, readConfigFromHash } from '../../js/config.js';
 
 const KEY = 'test-shared-key-0123456789';
 const PERSONAL = { SHARED_KEY: KEY, ALLOWED_GUESTS: 'guest@example.com, Friend@Example.com' };
-const MULTI = { SIGNING_SECRET: 'test-signing-secret', SITE_URL: 'https://example.com/vibedating/', API_URL: 'https://script.example.com/exec' };
+const MULTI = { SIGNING_SECRET: 'test-signing-secret', SITE_URL: 'https://example.com/vibedating/' };
 
 let seq = 0;
 const nextId = () => 'req-' + ++seq;
@@ -29,15 +29,15 @@ const baseConfig = () => ({
   slots: ['19:30', '20:00'], duration: 90, days: 30, tz: 'Europe/Rome', api: 'https://script.example.com/exec'
 });
 
-function createAndDecode(gas, config = baseConfig()) {
+const linkIn = (mail) => /#([yi])=([A-Za-z0-9_-]+)/.exec(mail.body);
+
+// Decodes the emailed link with the browser code, as the invite page would.
+async function createAndDecode(gas, config = baseConfig()) {
   const res = gas.post({ action: 'create', id: nextId(), config });
   assert.deepEqual(res, { ok: true });
-  const mail = gas.mails.at(-1);
-  const m = /#c=([A-Za-z0-9_-]+)/.exec(mail.body);
-  assert.ok(m, 'link in mail');
-  const decoded = decodeConfig(m[1]);
-  assert.deepEqual(decoded, JSON.parse(Buffer.from(m[1], 'base64url').toString('utf8')));
-  return decoded;
+  const m = linkIn(gas.mails.at(-1));
+  assert.ok(m && m[1] === 'y', 'compact link in mail');
+  return unpackCompact(m[2]);
 }
 
 const multiAccept = (config, extra = {}) => ({
@@ -176,23 +176,24 @@ test('thrown error -> server, not echoed', () => {
   assert.equal(gas.errors.length, 1);
 });
 
-test('create emails the signed link to the owner only', () => {
+test('create emails the signed link to the owner only', async () => {
   const gas = createGas({ props: MULTI });
-  const decoded = createAndDecode(gas);
+  const decoded = await createAndDecode(gas);
   assert.equal(gas.mails.length, 1);
   assert.equal(gas.mails[0].to, 'owner@example.com');
-  assert.match(gas.mails[0].body, /https:\/\/example\.com\/vibedating\/#c=/);
-  assert.match(gas.mails[0].options.htmlBody, /href="https:\/\/example\.com\/vibedating\/#c=/);
+  assert.match(gas.mails[0].body, /https:\/\/example\.com\/vibedating\/#y=/);
+  assert.match(gas.mails[0].options.htmlBody, /href="https:\/\/example\.com\/vibedating\/#y=/);
   assert.equal(typeof decoded.sig, 'string');
   assert.equal(decoded.exp, Math.floor(Date.parse('2026-10-25T10:00:00Z') / 1000) + 60 * 86400);
   const { sig, exp, ...rest } = decoded;
-  assert.deepEqual(rest, baseConfig());
+  const { api, ...expected } = baseConfig();
+  assert.deepEqual(rest, expected);
   assert.equal(gas.events.length, 0);
 });
 
-test('create ignores client-supplied sig/exp', () => {
+test('create ignores client-supplied sig/exp', async () => {
   const gas = createGas({ props: MULTI });
-  const decoded = createAndDecode(gas, { ...baseConfig(), sig: 'forged', exp: 9999999999 });
+  const decoded = await createAndDecode(gas, { ...baseConfig(), sig: 'forged', exp: 9999999999 });
   assert.notEqual(decoded.sig, 'forged');
   assert.notEqual(decoded.exp, 9999999999);
 });
@@ -206,9 +207,9 @@ test('create validation', () => {
   assert.equal(gas.mails.length, 0);
 });
 
-test('create per-owner cap', () => {
+test('create per-owner cap', async () => {
   const gas = createGas({ props: MULTI });
-  for (let i = 0; i < 3; i++) createAndDecode(gas);
+  for (let i = 0; i < 3; i++) await createAndDecode(gas);
   assert.deepEqual(gas.post({ action: 'create', id: nextId(), config: baseConfig() }), { ok: false, error: 'limit' });
   assert.equal(gas.mails.length, 3);
   assert.equal(gas.post({ action: 'create', id: nextId(), config: { ...baseConfig(), owner: 'b@example.com' } }).ok, true);
@@ -220,9 +221,9 @@ test('create without SITE_URL -> not_configured', () => {
   assert.equal(gas.mails.length, 0);
 });
 
-test('multi accept mails owner with .ics, no calendar write', () => {
+test('multi accept mails owner with .ics, no calendar write', async () => {
   const gas = createGas({ props: MULTI });
-  const config = createAndDecode(gas);
+  const config = await createAndDecode(gas);
   const res = gas.post(multiAccept(config));
   assert.deepEqual(res, { ok: true });
   assert.equal(gas.events.length, 0);
@@ -240,17 +241,17 @@ test('multi accept mails owner with .ics, no calendar write', () => {
   assert.deepEqual(gas.post({ ...multiAccept(config), id: 'dup-1' }), { ok: true, duplicate: true });
 });
 
-test('multi accept: reordered keys still verify', () => {
+test('multi accept: reordered keys still verify', async () => {
   const gas = createGas({ props: MULTI });
-  const config = createAndDecode(gas);
+  const config = await createAndDecode(gas);
   const reverse = (o) => Object.fromEntries(Object.entries(o).reverse()
     .map(([k, v]) => [k, Array.isArray(v) ? v.map((x) => (x && typeof x === 'object' ? reverse(x) : x)) : v]));
   assert.deepEqual(gas.post(multiAccept(reverse(config))), { ok: true });
 });
 
-test('multi accept refusals', () => {
+test('multi accept refusals', async () => {
   const gas = createGas({ props: MULTI });
-  const config = createAndDecode(gas);
+  const config = await createAndDecode(gas);
   const tampered = structuredClone(config);
   tampered.places[0].name = 'Renamed';
   assert.deepEqual(gas.post(multiAccept(tampered)), { ok: false, error: 'bad_signature' });
@@ -267,9 +268,9 @@ test('multi accept refusals', () => {
   assert.equal(gas.mails.length, 1);
 });
 
-test('multi accept per-owner cap', () => {
+test('multi accept per-owner cap', async () => {
   const gas = createGas({ props: { ...MULTI, OWNER_ACCEPT_LIMIT: '1' } });
-  const config = createAndDecode(gas);
+  const config = await createAndDecode(gas);
   assert.equal(gas.post(multiAccept(config)).ok, true);
   assert.deepEqual(gas.post(multiAccept(config)), { ok: false, error: 'limit' });
 });
@@ -287,9 +288,9 @@ test('create per-owner cap ignores spaces, NBSP and case', () => {
   assert.ok(gas.mails.every((m) => m.to === 'owner@example.com'));
 });
 
-test('multi accepts do not consume the personal cap', () => {
+test('multi accepts do not consume the personal cap', async () => {
   const gas = createGas({ props: { ...PERSONAL, ...MULTI, DAILY_LIMIT: '1', MULTI_DAILY_LIMIT: '2' } });
-  const config = createAndDecode(gas);
+  const config = await createAndDecode(gas);
   assert.equal(gas.post(multiAccept(config)).ok, true);
   assert.equal(gas.post(multiAccept(config)).ok, true);
   assert.deepEqual(gas.post(multiAccept(config)), { ok: false, error: 'limit' });
@@ -325,32 +326,33 @@ test('create refuses configs the front end would not accept', () => {
   assert.equal(create(gas, place({ emoji: '12345678', note: 'x'.repeat(140) })).ok, true);
 });
 
-test('create signs API_URL and ignores the client api', () => {
+test('create never signs an api and ignores the client api',  async () => {
   const gas = createGas({ props: MULTI });
-  const decoded = createAndDecode(gas, { ...baseConfig(), api: 'https://evil.example.org/exec', k: 'leak' });
-  assert.equal(decoded.api, MULTI.API_URL);
+  const decoded = await createAndDecode(gas, { ...baseConfig(), api: 'https://evil.example.org/exec', k: 'leak' });
+  assert.equal(decoded.api, undefined);
   assert.equal(decoded.k, undefined);
   const noApi = { ...baseConfig() };
   delete noApi.api;
-  assert.equal(createAndDecode(createGas({ props: MULTI }), noApi).api, MULTI.API_URL);
-  const missing = createGas({ props: { SIGNING_SECRET: 'x', SITE_URL: MULTI.SITE_URL } });
+  assert.equal((await createAndDecode(createGas({ props: MULTI }), noApi)).api, undefined);
+  const missing = createGas({ props: { SITE_URL: MULTI.SITE_URL } });
   assert.deepEqual(create(missing, baseConfig()), { ok: false, error: 'not_configured' });
 });
 
-test('server-signed link decodes and passes normalizeConfig', () => {
+test('server-signed link decodes in the browser and passes normalizeConfig', async () => {
   const gas = createGas({ props: MULTI });
-  const decoded = createAndDecode(gas, { ...baseConfig(), tz: 'europe/rome', slots: ['20:00', ' 19:30 ', '20:00'] });
+  const decoded = await createAndDecode(gas, { ...baseConfig(), tz: 'europe/rome', slots: ['20:00', ' 19:30 ', '20:00'] });
   const cfg = normalizeConfig(decoded);
+  assert.deepEqual(cfg, decoded);
   assert.equal(cfg.tz, 'Europe/Rome');
   assert.deepEqual(cfg.slots, ['19:30', '20:00']);
-  assert.equal(cfg.api, MULTI.API_URL);
+  assert.equal(cfg.api, undefined);
   assert.equal(cfg.owner, 'owner@example.com');
   assert.equal(cfg.sig, decoded.sig);
 });
 
-test('ics escapes CR and folds at 75 octets', () => {
+test('ics escapes CR and folds at 75 octets', async () => {
   const gas = createGas({ props: MULTI });
-  const config = createAndDecode(gas, {
+  const config = await createAndDecode(gas, {
     ...baseConfig(),
     places: [{ name: 'Line\rOne', note: 'é'.repeat(60) + '🍝'.repeat(20), address: 'Via\rRoma\r\nX, y\nZ' }]
   });
@@ -365,9 +367,9 @@ test('ics escapes CR and folds at 75 octets', () => {
   assert.ok(!gas.mails.at(-1).subject.match(/[\r\n]/));
 });
 
-test('tz is canonicalised on create and the instant is right', () => {
+test('tz is canonicalised on create and the instant is right', async () => {
   const gas = createGas({ props: MULTI });
-  const config = createAndDecode(gas, { ...baseConfig(), tz: 'europe/rome' });
+  const config = await createAndDecode(gas, { ...baseConfig(), tz: 'europe/rome' });
   assert.equal(config.tz, 'Europe/Rome');
   assert.equal(gas.post(multiAccept(config)).ok, true);
   assert.match(gas.mails.at(-1).body, /dates=20261105T190000Z/);
@@ -377,9 +379,9 @@ test('tz is canonicalised on create and the instant is right', () => {
   assert.deepEqual(p.post(accept({ tz: 'Mars/Base' })), { ok: true });
 });
 
-test('past start today -> bad_time in both modes', () => {
+test('past start today -> bad_time in both modes', async () => {
   const gas = createGas({ props: { ...PERSONAL, ...MULTI }, now: '2026-10-25T19:30:00Z' });
-  const config = createAndDecode(gas);
+  const config = await createAndDecode(gas);
   assert.deepEqual(gas.post(multiAccept(config, { date: '2026-10-25', time: '20:00' })), { ok: false, error: 'bad_time' });
   assert.deepEqual(gas.post(accept({ date: '2026-10-25', time: '20:00' })), { ok: false, error: 'bad_time' });
   assert.deepEqual(gas.post(accept({ date: '2026-10-25', time: '21:00' })), { ok: true });
@@ -396,11 +398,78 @@ test('personal title follows lang and from', () => {
   assert.deepEqual(gas.post(accept({ lang: 'fr' })), { ok: false, error: 'bad_request' });
 });
 
-test('multi accept title uses config lang and from', () => {
+test('multi accept title uses config lang and from', async () => {
   const gas = createGas({ props: MULTI });
-  gas.post(multiAccept(createAndDecode(gas)));
+  gas.post(multiAccept(await createAndDecode(gas)));
   assert.match(icsOf(gas), /SUMMARY:Dinner with B/);
   const { from, ...rest } = baseConfig();
-  gas.post(multiAccept(createAndDecode(gas, { ...rest, lang: 'it', owner: 'o2@example.com' })));
+  gas.post(multiAccept(await createAndDecode(gas, { ...rest, lang: 'it', owner: 'o2@example.com' })));
   assert.match(icsOf(gas), /SUMMARY:Cena insieme/);
+});
+
+test('emulated gzip carries FNAME like the real service', () => {
+  const gas = createGas();
+  const bytes = gas.utilities.gzip(gas.utilities.newBlob('{"a":1}', 'application/json', 'config.json')).getBytes();
+  assert.equal(bytes[3] & 8, 8);
+  assert.equal(Buffer.from(bytes.slice(10, 21).map((b) => b & 255)).toString('latin1'), 'config.json');
+});
+
+test('a Code.gs link opens in the browser code and its signature verifies on accept', async () => {
+  const gas = createGas({ props: MULTI });
+  const derived = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent('Caffè Né, Via Già 1')}`;
+  const { lang, ...noLang } = baseConfig();
+  const config = { ...noLang, to: 'Chiàra 💕', places: [{ name: 'Caffè Né', emoji: '☕', address: 'Via Già 1', maps: derived }, { name: 'Plain' }] };
+  assert.deepEqual(gas.post({ action: 'create', id: nextId(), config }), { ok: true });
+  const [, kind, payload] = linkIn(gas.mails.at(-1));
+  assert.equal(kind, 'y');
+  const { raw, cfg } = await readConfigFromHash(`#y=${payload}`);
+  assert.equal(cfg.lang, 'it');
+  assert.equal(cfg.places[0].maps, derived);
+  assert.deepEqual(normalizeConfig(raw), cfg);
+  assert.deepEqual(gas.post(multiAccept(raw)), { ok: true });
+  assert.deepEqual(gas.post(multiAccept({ ...raw, to: 'Other' })), { ok: false, error: 'bad_signature' });
+});
+
+const STORE = { ...MULTI, LINKS_URL: 'https://links.example.com/links', LINKS_SECRET: 'links-secret' };
+
+test('create shortens the link through the store when configured', async () => {
+  const gas = createGas({ props: STORE });
+  gas.fetchImpl = () => ({ body: JSON.stringify({ ok: true, id: 'Xk3f9Qa2bT' }) });
+  assert.deepEqual(gas.post({ action: 'create', id: nextId(), config: baseConfig() }), { ok: true });
+  assert.match(gas.mails[0].body, /https:\/\/example\.com\/vibedating\/#i=Xk3f9Qa2bT\n/);
+  assert.equal(gas.fetches.length, 1);
+  const { url, params } = gas.fetches[0];
+  assert.equal(url, STORE.LINKS_URL);
+  assert.equal(params.method, 'post');
+  assert.equal(params.headers.Authorization, 'Bearer links-secret');
+  const { raw } = await readConfigFromHash(`#y=${JSON.parse(params.payload).p}`);
+  assert.deepEqual(gas.post(multiAccept(raw)), { ok: true });
+});
+
+test('a failing store falls back to the compact link', () => {
+  const replies = [
+    () => ({ code: 500, body: '{"ok":false,"error":"server"}' }),
+    () => ({ code: 429, body: '<html>' }),
+    () => ({ body: JSON.stringify({ ok: true, id: '../evil' }) }),
+    () => { throw new Error('DNS error'); },
+  ];
+  for (const reply of replies) {
+    const gas = createGas({ props: STORE });
+    gas.fetchImpl = reply;
+    assert.deepEqual(gas.post({ action: 'create', id: nextId(), config: baseConfig() }), { ok: true });
+    assert.equal(linkIn(gas.mails[0])[1], 'y');
+    assert.equal(gas.errors.length, 1);
+  }
+});
+
+test('the store is skipped without both properties or past the daily cap', () => {
+  for (const props of [MULTI, { ...STORE, LINKS_SECRET: '' }, { ...STORE, LINKS_URL: 'http://links.example.com/links' }]) {
+    const gas = createGas({ props });
+    assert.deepEqual(gas.post({ action: 'create', id: nextId(), config: baseConfig() }), { ok: true });
+    assert.equal(linkIn(gas.mails[0])[1], 'y');
+    assert.equal(gas.fetches.length, 0);
+  }
+  const gas = createGas({ props: { ...STORE, CREATE_DAILY_LIMIT: '0' } });
+  assert.deepEqual(gas.post({ action: 'create', id: nextId(), config: baseConfig() }), { ok: false, error: 'limit' });
+  assert.equal(gas.fetches.length, 0);
 });

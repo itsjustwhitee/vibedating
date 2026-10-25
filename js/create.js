@@ -2,17 +2,24 @@ import { normalizeConfig, buildInviteUrl, ConfigError } from './config.js';
 import { postJson, createAttempt } from './api.js';
 import { isHttps, isEmail, isValidTime } from './validators.js';
 import { h, $, $$ } from './ui/dom.js';
-import { button, chip, field, questionCard, toast, copyText, fill, langToggle, siteFooter } from './ui/components.js';
+import { chip, iconButton, toast, copyText, fill, langToggle, siteFooter } from './ui/components.js';
 import { icon } from './ui/icons.js';
+import { emojiPicker, suggestEmoji, DEFAULT_EMOJI } from './ui/emojiPicker.js';
+import { placeCombobox } from './ui/placeSearch.js';
 import { strings, CREATE, detectLang, savedLang, saveLang } from './ui/strings.js';
 
 const STORE = 'vibedating:create';
-const META_API = $('meta[name="vibedating-api"]')?.content.trim() || '';
-const SITE_API = isHttps(META_API) ? META_API : '';
+const meta = (name) => $(`meta[name="${name}"]`)?.content.trim() || '';
+const SITE_API = isHttps(meta('vibedating-api')) ? meta('vibedating-api') : '';
+const SITE_LINKS = meta('vibedating-links');
+const ADVANCED = new URLSearchParams(location.search).has('advanced');
 const PRESET_SLOTS = ['18:30', '19:00', '19:30', '20:00', '20:30', '21:00', '21:30', '22:00'];
 const TEXT_FIELDS = ['to', 'from', 'q', 'done', 'lang', 'duration', 'days', 'tz', 'api', 'owner', 'k'];
 const PLACE_KEYS = ['emoji', 'name', 'note', 'address', 'maps'];
 const ERROR_IDS = ['to', 'from', 'q', 'done', 'places', 'slots', 'duration', 'days', 'tz', 'api', 'k', 'owner'];
+
+// The personal key is for the site owner only: the section exists only with ?advanced.
+if (!ADVANCED) $('#advanced').remove();
 
 const form = $('#form');
 const placesEl = $('#places');
@@ -20,7 +27,6 @@ const slotsEl = $('#slots');
 const result = $('#result');
 const sent = $('#sent');
 const build = $('#build');
-const pane = $('#preview-pane');
 const attempt = createAttempt();
 let uiLang = savedLang() || detectLang();
 let S;
@@ -28,11 +34,15 @@ let t;
 let slots = [];
 let customSlots = [];
 let busy = false;
+let linkSeq = 0;
+let shownKey = '';
+let placeSeq = 0;
+let footer;
 
 const DEFAULT = {
   to: '', from: '', q: '', done: '', lang: uiLang, duration: '120', days: '60', tz: 'Europe/Rome',
   delivery: SITE_API ? 'email' : 'link', api: '', owner: '',
-  places: [{ emoji: '🍣', name: '', note: '', address: '', maps: '' }],
+  places: [{ emoji: DEFAULT_EMOJI, name: '', note: '', address: '', maps: '' }],
   slots: ['19:30', '20:00', '20:30', '21:00'],
 };
 
@@ -49,11 +59,10 @@ function save(state) {
   try { localStorage.setItem(STORE, JSON.stringify(rest)); } catch { /* storage unavailable */ }
 }
 
-const readPlaces = () => $$('.place-row', placesEl).map((row) =>
-  Object.fromEntries(PLACE_KEYS.map((key) => [key, $(`[data-key="${key}"]`, row).value])));
+const readPlaces = () => $$('.place-row', placesEl).map((row) => row.read());
 
 function readForm() {
-  const state = Object.fromEntries(TEXT_FIELDS.map((n) => [n, form.elements[n].value]));
+  const state = Object.fromEntries(TEXT_FIELDS.map((n) => [n, form.elements[n]?.value ?? '']));
   state.delivery = form.elements.delivery.value || DEFAULT.delivery;
   state.places = readPlaces();
   state.slots = [...slots];
@@ -62,33 +71,78 @@ function readForm() {
 }
 
 function modeOf(state) {
-  if (state.k.trim() || (!SITE_API && state.api.trim())) return 'personal';
+  if (ADVANCED && (state.k.trim() || (!SITE_API && state.api.trim()))) return 'personal';
   return SITE_API && state.delivery === 'email' ? 'multi' : 'client';
 }
 
 function placeRow(p = {}) {
   const row = h('li', { class: 'place-row' });
-  const input = (key, attrs = {}) => {
-    const el = h('input', { class: 'input', 'data-key': key, autocomplete: 'off', ...attrs });
+  const inputs = {};
+  const errors = {};
+  const field = (key, label, attrs = {}, control) => {
+    const id = `place-${key}-${++placeSeq}`;
+    const el = h('input', { class: 'input', id, 'data-key': key, autocomplete: 'off', 'aria-describedby': `${id}-err`, ...attrs });
     el.value = p[key] || '';
-    return el;
+    inputs[key] = el;
+    errors[key] = h('p', { class: 'field-error', id: `${id}-err`, 'aria-live': 'polite' });
+    return h('div', { class: 'field' }, label && h('label', { class: 'field-label', for: id }, label), control ? control(el) : el, errors[key]);
   };
-  const fields = {
-    emoji: field(S.placeEmoji, input('emoji', { maxlength: 8, class: 'input input-emoji' })),
-    name: field(S.placeName, input('name', { maxlength: 80, placeholder: S.placeNamePh })),
-    note: field(S.placeNote, input('note', { maxlength: 140, placeholder: S.placeNotePh })),
-    address: field(S.placeAddress, input('address', { maxlength: 200, placeholder: S.placeAddressPh })),
-    maps: field(S.placeMaps, input('maps', { type: 'url', placeholder: 'https://maps.app.goo.gl/…', spellcheck: 'false' })),
-  };
-  row.setErrors = (errs = {}) => { for (const [key, f] of Object.entries(fields)) f.setError(errs[key]); };
-  const remove = button(S.placeRemove, {
-    variant: 'ghost', class: 'place-remove', icon: 'x',
-    onClick: () => { row.remove(); renumber(); update(); },
+
+  let picked = Boolean(p.picked);
+  const emoji = emojiPicker({
+    value: p.emoji || suggestEmoji(p.name),
+    label: S.placeEmoji,
+    onPick: () => { picked = true; update(); },
   });
+  const autoEmoji = () => { if (!picked) emoji.set(suggestEmoji(inputs.name.value)); };
+
+  const nameField = field('name', null, { maxlength: 80, spellcheck: 'false', placeholder: S.placeNamePh }, (el) => placeCombobox(el, {
+    lang: () => uiLang,
+    label: S.suggestions,
+    onPick: (place) => {
+      inputs.address.value = place.address;
+      inputs.maps.value = place.maps;
+      autoEmoji();
+      update();
+    },
+  }).el);
+  inputs.name.addEventListener('input', autoEmoji);
+
+  const title = h('label', { class: 'field-label place-row-title', for: inputs.name.id });
+  const remove = iconButton('x', '', {
+    class: 'place-remove',
+    onClick: () => { row.remove(); renumber(); update(); $('#add-place').focus(); },
+  });
+
   row.append(
-    h('div', { class: 'place-row-head' }, h('h3', { class: 'place-row-title' }), remove),
-    h('div', { class: 'place-row-grid' }, ...Object.values(fields).map((f) => f.el)),
+    h('div', { class: 'place-row-head' }, title, remove),
+    h('div', { class: 'place-main' }, emoji.el, nameField),
+    field('note', S.placeNote, { maxlength: 140, placeholder: S.placeNotePh }),
+    h('details', { class: 'place-more' },
+      h('summary', {}, icon('map-pin', { size: 16 }), h('span', {}, S.placeDetails)),
+      h('div', { class: 'place-more-body' },
+        field('address', S.placeAddress, { maxlength: 200, placeholder: S.placeAddressPh }),
+        field('maps', S.placeMaps, { type: 'url', placeholder: 'https://maps.app.goo.gl/…', spellcheck: 'false' }))),
   );
+
+  row.read = () => ({
+    emoji: emoji.value,
+    ...Object.fromEntries(Object.entries(inputs).map(([key, el]) => [key, el.value])),
+    picked,
+  });
+  row.setNumber = (n) => {
+    title.textContent = t('placeLabel', { n });
+    const label = t('placeRemove', { n });
+    remove.setAttribute('aria-label', label);
+    remove.title = label;
+  };
+  row.setErrors = (errs = {}) => {
+    for (const [key, el] of Object.entries(errors)) {
+      el.textContent = errs[key] || '';
+      if (errs[key]) inputs[key].setAttribute('aria-invalid', 'true');
+      else inputs[key].removeAttribute('aria-invalid');
+    }
+  };
   return row;
 }
 
@@ -100,7 +154,7 @@ function renderPlaces(list) {
 function renumber() {
   const rows = $$('.place-row', placesEl);
   rows.forEach((row, i) => {
-    $('.place-row-title', row).textContent = t('placeLabel', { n: i + 1 });
+    row.setNumber(i + 1);
     $('.place-remove', row).hidden = rows.length === 1;
   });
   $('#add-place').disabled = rows.length >= 12;
@@ -131,8 +185,11 @@ function buildRaw(state, mode) {
   raw.duration = Number(state.duration);
   raw.days = Number(state.days);
   raw.tz = state.tz.trim();
-  if (mode !== 'client') raw.api = SITE_API || state.api.trim();
-  if (mode === 'personal') raw.k = state.k.trim();
+  // With a site back end the invite page talks to it directly: links never carry `api` then.
+  if (mode === 'personal') {
+    if (!SITE_API) raw.api = state.api.trim();
+    raw.k = state.k.trim();
+  }
   if (mode === 'multi') raw.owner = state.owner.trim();
   return raw;
 }
@@ -143,11 +200,12 @@ function validate(mode, raw) {
     const e = {};
     if (!p.name || p.name.length > 80) e.name = S.errors.placeName;
     if (p.maps && !isHttps(p.maps)) e.maps = S.errors.placeMaps;
-    if ((p.emoji || '').length > 8 || (p.note || '').length > 140 || (p.address || '').length > 200) e.note = S.errors.place;
+    if ((p.note || '').length > 140) e.note = S.errors.place;
+    if ((p.address || '').length > 200) e.address = S.errors.place;
     return Object.keys(e).length ? e : null;
   });
   if (!Number.isInteger(raw.days) || raw.days < 1 || raw.days > 180) errs.days = S.errors.days;
-  if (mode === 'personal' && !isHttps(raw.api)) errs.api = S.errors.api;
+  if (mode === 'personal' && !SITE_API && !isHttps(raw.api)) errs.api = S.errors.api;
   if (mode === 'personal' && (raw.k || '').length < 8) errs.k = S.errors.k;
   if (mode === 'multi' && !isEmail(raw.owner || '')) errs.owner = S.errors.owner;
   if (!placeErrs.some(Boolean)) {
@@ -177,47 +235,63 @@ function showErrors({ errs, placeErrs }) {
   for (const d of $$('details', form)) if ($('[aria-invalid="true"]', d)) d.open = true;
 }
 
-function renderPreview(state) {
-  const { s, t: ti } = strings(state.lang);
-  const card = questionCard({
-    to: state.to.trim(), q: state.q.trim() || s.q, from: state.from.trim(), yes: s.yes, no: s.no,
-    fromLine: ti('fromLine', { from: state.from.trim() }), heading: 'p',
-  });
-  for (const b of [card.yes, card.no]) b.tabIndex = -1;
-  $('#preview').replaceChildren(card.el);
-  $('#q').placeholder = s.q;
-  $('#done').placeholder = s.done;
-}
-
 function setButton(label, name) {
   build.replaceChildren(icon(name, { size: 18 }), label);
+}
+
+function hideLink() {
+  linkSeq++;
+  shownKey = '';
+  result.hidden = true;
+}
+
+// `store` asks the link store for a short link; it is used on an explicit build only, so edits
+// never spend store writes.
+async function showLink(raw, { store = false } = {}) {
+  const seq = ++linkSeq;
+  shownKey = JSON.stringify(raw);
+  const url = await buildInviteUrl(new URL('index.html', location.href).href, raw, { linksApi: store ? SITE_LINKS : '' });
+  if (seq !== linkSeq) return;
+  $('#link').value = url;
+  $('#open').href = url;
+  result.hidden = false;
 }
 
 function update() {
   const state = readForm();
   const mode = modeOf(state);
   save(state);
-  renderPreview(state);
+  const { s: invite } = strings(state.lang);
+  $('#q').placeholder = invite.q;
+  $('#done').placeholder = invite.done;
   $('#choices').hidden = !SITE_API;
   $('#choices').classList.toggle('is-locked', mode === 'personal');
   for (const r of form.elements.delivery) r.disabled = mode === 'personal';
   $('#owner-field').hidden = mode !== 'multi';
   $('#link-only').hidden = Boolean(SITE_API) || mode === 'personal';
   $('#personal-note').hidden = mode !== 'personal';
-  $('#api-field').hidden = Boolean(SITE_API);
+  if (ADVANCED) $('#api-field').hidden = Boolean(SITE_API);
   if (!busy) setButton(mode === 'multi' ? S.buildEmail : S.build, mode === 'multi' ? 'send' : 'sparkles');
   if (!result.hidden) {
     const raw = buildRaw(state, mode);
-    if (mode === 'multi' || hasErrors(validate(mode, raw))) result.hidden = true;
+    if (JSON.stringify(raw) === shownKey) return;
+    // A short link would go stale on edit: drop it until the next build.
+    if (mode === 'multi' || SITE_LINKS || hasErrors(validate(mode, raw))) hideLink();
     else showLink(raw);
   }
 }
 
-function showLink(raw) {
-  const url = buildInviteUrl(new URL('index.html', location.href).href, raw);
-  $('#link').value = url;
-  $('#open').href = url;
-  result.hidden = false;
+async function whileBusy(label, name, task) {
+  busy = true;
+  build.disabled = true;
+  setButton(label, name);
+  try {
+    return await task();
+  } finally {
+    busy = false;
+    build.disabled = false;
+    update();
+  }
 }
 
 function showSent(ok, text) {
@@ -236,30 +310,22 @@ async function submit(e) {
   sent.hidden = true;
   if (hasErrors(v)) {
     $('#form-err').textContent = S.fixErrors;
-    result.hidden = true;
+    hideLink();
     form.querySelector('[aria-invalid="true"]')?.focus();
     return;
   }
   $('#form-err').textContent = '';
+  if (busy) return;
   if (mode !== 'multi') {
-    showLink(raw);
+    if (SITE_LINKS) await whileBusy(S.shortening, 'link', () => showLink(raw, { store: true }));
+    else await showLink(raw);
     return;
   }
-  result.hidden = true;
-  if (busy) return;
-  const config = { ...raw };
-  delete config.sig;
-  delete config.exp;
-  const id = attempt.begin(JSON.stringify(config));
+  hideLink();
+  const id = attempt.begin(JSON.stringify(raw));
   if (!id) return;
-  busy = true;
-  build.disabled = true;
-  setButton(S.sending, 'send');
-  const res = await postJson(config.api, { action: 'create', id, config });
+  const res = await whileBusy(S.sending, 'send', () => postJson(SITE_API, { action: 'create', id, config: raw }));
   attempt.end(res);
-  busy = false;
-  build.disabled = false;
-  update();
   showSent(res.ok, res.ok ? S.sent : t('createFailed', { reason: S.reasons[res.error] || S.reasons.default }));
 }
 
@@ -279,12 +345,24 @@ function applyLang(code) {
   update();
 }
 
-let footer;
+function addSlot() {
+  const v = $('#custom-slot').value;
+  if (!isValidTime(v)) {
+    $('#slots-err').textContent = S.errors.slotFormat;
+    return;
+  }
+  if (!PRESET_SLOTS.includes(v) && !customSlots.includes(v)) customSlots.push(v);
+  if (!slots.includes(v)) slots = [...slots, v].sort();
+  $('#custom-slot').value = '';
+  $('#slots-err').textContent = '';
+  renderSlots();
+  update();
+}
 
 function init() {
   ({ s: S, t } = strings(uiLang, CREATE));
   const state = load();
-  for (const n of TEXT_FIELDS) if (n !== 'k' && state[n] !== undefined) form.elements[n].value = state[n];
+  for (const n of TEXT_FIELDS) if (n !== 'k' && state[n] !== undefined && form.elements[n]) form.elements[n].value = state[n];
   form.elements.delivery.value = SITE_API ? state.delivery : 'link';
   slots = [...state.slots];
   customSlots = (state.customSlots || []).filter((s) => !PRESET_SLOTS.includes(s));
@@ -302,35 +380,27 @@ function init() {
     update();
     $('[data-key="name"]', row).focus();
   });
-  $('#add-slot').addEventListener('click', () => {
-    const v = $('#custom-slot').value;
-    if (!isValidTime(v)) {
-      $('#slots-err').textContent = S.errors.slotFormat;
-      return;
-    }
-    if (!PRESET_SLOTS.includes(v) && !customSlots.includes(v)) customSlots.push(v);
-    if (!slots.includes(v)) slots = [...slots, v].sort();
-    $('#custom-slot').value = '';
-    $('#slots-err').textContent = '';
-    renderSlots();
-    update();
+  $('#add-slot').addEventListener('click', addSlot);
+  $('#custom-slot').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    addSlot();
   });
   $('#copy').addEventListener('click', async () => {
     toast((await copyText($('#link').value)) ? S.copied : S.copyFailed);
   });
   $('#share').addEventListener('click', () => {
-    const url = $('#link').value;
-    navigator.share({ title: strings(form.elements.lang.value).s.pageTitle, url }).catch(() => {});
+    navigator.share({ title: strings(form.elements.lang.value).s.pageTitle, url: $('#link').value }).catch(() => {});
   });
-  const setPreview = (open) => {
-    pane.classList.toggle('is-open', open);
-    document.body.classList.toggle('preview-open', open);
-  };
-  $('#preview-open').addEventListener('click', () => setPreview(true));
-  $('#preview-close').addEventListener('click', () => setPreview(false));
-  pane.addEventListener('click', (e) => { if (e.target === pane) setPreview(false); });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setPreview(false); });
-  form.addEventListener('input', update);
+  form.addEventListener('input', (e) => {
+    // Inline validation: an edited field drops its error right away; the rest waits for the next submit.
+    if (e.target.getAttribute?.('aria-invalid') === 'true') {
+      e.target.removeAttribute('aria-invalid');
+      const err = $(`#${e.target.id}-err`);
+      if (err) err.textContent = '';
+    }
+    update();
+  });
   form.addEventListener('change', update);
   form.addEventListener('submit', submit);
   applyLang(uiLang);

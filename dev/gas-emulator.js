@@ -1,5 +1,6 @@
 import vm from 'node:vm';
 import crypto from 'node:crypto';
+import zlib from 'node:zlib';
 import { readFileSync } from 'node:fs';
 
 const CODE = readFileSync(new URL('../apps-script/Code.gs', import.meta.url), 'utf8');
@@ -48,6 +49,15 @@ function formatDate(date, tz, pattern) {
 const toSigned = (buf) => Array.from(buf, (b) => (b > 127 ? b - 256 : b));
 const toBuffer = (data) => (typeof data === 'string' ? Buffer.from(data, 'utf8') : Buffer.from(data.map((b) => b & 255)));
 
+// Like the real service, the gzip header carries a file name (FNAME), so callers must parse it.
+function gzipWithName(data, name) {
+  const header = Buffer.from([0x1f, 0x8b, 8, 0x08, 0, 0, 0, 0, 0, 0xff]);
+  const trailer = Buffer.alloc(8);
+  trailer.writeUInt32LE(zlib.crc32(data), 0);
+  trailer.writeUInt32LE(data.length % 2 ** 32, 4);
+  return Buffer.concat([header, Buffer.from(name, 'latin1'), Buffer.from([0]), zlib.deflateRawSync(data), trailer]);
+}
+
 export function createGas({ props = {}, now = '2026-10-25T10:00:00Z', tz = 'Europe/Rome' } = {}) {
   let nowMs = new Date(now).getTime();
   const store = new Map(Object.entries(props));
@@ -55,6 +65,7 @@ export function createGas({ props = {}, now = '2026-10-25T10:00:00Z', tz = 'Euro
   const events = [];
   const mails = [];
   const errors = [];
+  const fetches = [];
   const calendar = { createEvent: (title, start, end, opts) => events.push({ title, start, end, opts }) };
 
   class FakeDate extends Date {
@@ -67,7 +78,9 @@ export function createGas({ props = {}, now = '2026-10-25T10:00:00Z', tz = 'Euro
 
   const gas = {
     calendarImpl: () => calendar,
-    events, mails, errors, store, cache,
+    events, mails, errors, store, cache, fetches,
+    // Replace to answer UrlFetchApp calls: (url, params) => ({ code, body }).
+    fetchImpl: () => { throw new Error('Address unavailable'); },
     setNow(v) { nowMs = new Date(v).getTime(); }
   };
 
@@ -94,6 +107,14 @@ export function createGas({ props = {}, now = '2026-10-25T10:00:00Z', tz = 'Euro
     },
     LockService: { getScriptLock: () => ({ waitLock() {}, tryLock: () => true, releaseLock() {} }) },
     CalendarApp: { getDefaultCalendar: () => gas.calendarImpl() },
+    UrlFetchApp: {
+      fetch: (url, params = {}) => {
+        fetches.push({ url, params });
+        const { code = 200, body = '' } = gas.fetchImpl(url, params);
+        if (code >= 400 && !params.muteHttpExceptions) throw new Error(`Request failed for ${url} returned code ${code}`);
+        return { getResponseCode: () => code, getContentText: () => body };
+      }
+    },
     MailApp: { sendEmail: (to, subject, body, options = {}) => mails.push({ to, subject, body, options }) },
     Session: {
       getScriptTimeZone: () => tz,
@@ -108,10 +129,15 @@ export function createGas({ props = {}, now = '2026-10-25T10:00:00Z', tz = 'Euro
       computeDigest: (alg, value) => toSigned(crypto.createHash('sha256').update(toBuffer(value)).digest()),
       base64EncodeWebSafe: (data) => toBuffer(data).toString('base64').replace(/\+/g, '-').replace(/\//g, '_'),
       newBlob: (data, contentType, name) => ({
-        getDataAsString: () => data,
+        getDataAsString: () => (typeof data === 'string' ? data : toBuffer(data).toString('utf8')),
+        getBytes: () => (typeof data === 'string' ? toSigned(Buffer.from(data, 'utf8')) : data),
         getContentType: () => contentType,
         getName: () => name
       }),
+      gzip: (blob, name) => {
+        const file = name || blob.getName() || 'data';
+        return context.Utilities.newBlob(toSigned(gzipWithName(toBuffer(blob.getBytes()), file)), 'application/x-gzip', `${file}.gz`);
+      },
       getUuid: () => crypto.randomUUID()
     },
     ContentService: {
@@ -124,6 +150,7 @@ export function createGas({ props = {}, now = '2026-10-25T10:00:00Z', tz = 'Euro
     },
     MimeType: { JSON: 'application/json' }
   };
+  gas.utilities = context.Utilities;
   vm.createContext(context);
   vm.runInContext(CODE, context, { filename: 'Code.gs' });
 

@@ -1,0 +1,20 @@
+# Copy to wrangler.toml (kept out of the repo) and fill in the KV namespace id.
+name = "vibedating-links"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+
+[[kv_namespaces]]
+binding = "LINKS"
+id = "00000000000000000000000000000000"
+
+# Anonymous writes per client IP; requests with the write secret skip it.
+[[ratelimits]]
+name = "LIMITER"
+namespace_id = "1001"
+simple = { limit = 10, period = 60 }
+
+[vars]
+ALLOWED_ORIGINS = "https://example.com"
+LINK_TTL_DAYS = "365"
+
+# Secret, never in this file: npx wrangler secret put WRITE_SECRET

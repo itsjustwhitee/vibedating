@@ -45,7 +45,7 @@ test('landing without fragment links to the builder and a demo', async () => {
   await page.waitForSelector('[data-screen="landing"]');
   assert.equal(await page.locator('a[href="create.html"]').count(), 1);
   assert.equal(await page.title(), 'Una domanda per te 💌');
-  await page.click('a[href*="#c="]');
+  await page.click('a[href*="#y="]');
   await page.waitForSelector('[data-screen="question"]');
   await context.close();
 });
@@ -207,7 +207,7 @@ for (const [name, reply] of [['back-end error', { ok: false, error: 'limit' }], 
     await page.click('.btn-next');
     await page.waitForSelector('[data-screen="done"]');
     assert.equal(bodies.length, 1);
-    assert.match(await page.textContent('.fallback'), /non è partito/);
+    assert.match(await page.textContent('.fallback'), /non inviata/);
     assert.ok(await page.getAttribute('#gcal', 'href'));
     await context.close();
   });
@@ -266,7 +266,7 @@ test('guest_not_allowed goes back to the email step, a corrected email succeeds'
   await page.fill('#guest', 'wrong@example.com');
   await page.click('.btn-next');
   await page.waitForSelector('[data-screen="email"]');
-  assert.match(await page.textContent('#guest-err'), /Ciuchi pensava/);
+  assert.match(await page.textContent('#guest-err'), /previsto da Ciuchi/);
   await page.fill('#guest', 'giulia@example.com');
   await page.click('.btn-next');
   await page.waitForSelector('[data-screen="done"]');
@@ -292,7 +292,7 @@ test('bad_time from the server goes back to the date and time step with a messag
   await page.fill('#guest', 'giulia@example.com');
   await page.click('.btn-next');
   await page.waitForSelector('[data-screen="datetime"]');
-  assert.match(await page.textContent('[data-screen="datetime"] .field-error[role="alert"]'), /non è più disponibile/);
+  assert.match(await page.textContent('[data-screen="datetime"] .field-error[role="alert"]'), /non più disponibile/);
   assert.equal(await page.isDisabled('.btn-next'), true);
   await context.close();
 });
@@ -307,7 +307,7 @@ test('a slot that passed while the page was open sends nothing and returns to th
   await page.clock.setFixedTime(new Date('2026-10-25T20:45:00+01:00'));
   await page.click('.btn-next');
   await page.waitForSelector('[data-screen="datetime"]');
-  assert.match(await page.textContent('[data-screen="datetime"] .field-error[role="alert"]'), /non è più disponibile/);
+  assert.match(await page.textContent('[data-screen="datetime"] .field-error[role="alert"]'), /non più disponibile/);
   assert.equal(await page.isDisabled('[data-slot="20:30"]'), true);
   assert.equal(bodies.length, 0);
   await context.close();
