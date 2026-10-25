@@ -41,7 +41,7 @@ test('client mode builds a link that opens a working invite with accents and emo
   await fillBasics(page);
   await page.click('#build');
   const cfg = await linkCfg(page);
-  assert.match(await page.inputValue('#link'), /index\.html#y=/);
+  assert.match(await page.inputValue('#link'), /\/#y=/);
   assert.equal(cfg.api, undefined);
   assert.equal(cfg.k, undefined);
   assert.equal(cfg.places[0].emoji, '☕');

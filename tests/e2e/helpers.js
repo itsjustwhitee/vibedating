@@ -18,7 +18,7 @@ export async function startServer() {
     const path = normalize(decodeURIComponent(new URL(req.url, 'http://x').pathname)).replace(/^([/\\])+/, '');
     try {
       const body = await readFile(join(ROOT, path || 'index.html'));
-      res.writeHead(200, { 'Content-Type': TYPES[extname(path)] || 'application/octet-stream' });
+      res.writeHead(200, { 'Content-Type': TYPES[extname(path || 'index.html')] || 'application/octet-stream' });
       res.end(body);
     } catch {
       res.writeHead(404).end('not found');

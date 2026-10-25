@@ -250,7 +250,7 @@ function hideLink() {
 async function showLink(raw, { store = false } = {}) {
   const seq = ++linkSeq;
   shownKey = JSON.stringify(raw);
-  const url = await buildInviteUrl(new URL('index.html', location.href).href, raw, { linksApi: store ? SITE_LINKS : '' });
+  const url = await buildInviteUrl(new URL('./', location.href).href, raw, { linksApi: store ? SITE_LINKS : '' });
   if (seq !== linkSeq) return;
   $('#link').value = url;
   $('#open').href = url;

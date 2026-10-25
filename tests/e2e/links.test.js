@@ -32,7 +32,7 @@ async function buildLink(page) {
 test('the builder stores the link and the short link opens', async () => {
   const { context, page } = await newPage(browser);
   const link = await buildLink(page);
-  assert.match(link, /\/index\.html#i=[A-Za-z0-9]{10}$/);
+  assert.match(link, /\/#i=[A-Za-z0-9]{10}$/);
   assert.equal(dev.links.LINKS.puts.length, 1);
   console.log(`builder #i= link: ${link.length} characters`);
 
