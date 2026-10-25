@@ -2,7 +2,7 @@ import { normalizeConfig, buildInviteUrl, ConfigError } from './config.js';
 import { postJson, createAttempt } from './api.js';
 import { isHttps, isEmail, isValidTime } from './validators.js';
 import { h, $, $$ } from './ui/dom.js';
-import { button, chip, field, questionCard, toast, copyText, fill, langToggle } from './ui/components.js';
+import { button, chip, field, questionCard, toast, copyText, fill, langToggle, siteFooter } from './ui/components.js';
 import { icon } from './ui/icons.js';
 import { strings, CREATE, detectLang, savedLang, saveLang } from './ui/strings.js';
 
@@ -270,6 +270,7 @@ function applyLang(code) {
   document.documentElement.lang = code;
   document.title = `${S.title} 💌`;
   fill(document, S);
+  footer?.setText(S.footer);
   for (const el of $$('[data-step]')) el.textContent = t('stepOf', { n: el.dataset.step });
   if (places.length) renderPlaces(places);
   showErrors({ errs: {}, placeErrs: [] });
@@ -277,6 +278,8 @@ function applyLang(code) {
   sent.hidden = true;
   update();
 }
+
+let footer;
 
 function init() {
   ({ s: S, t } = strings(uiLang, CREATE));
@@ -287,6 +290,8 @@ function init() {
   customSlots = (state.customSlots || []).filter((s) => !PRESET_SLOTS.includes(s));
   renderPlaces(state.places.length ? state.places : DEFAULT.places);
   renderSlots();
+  footer = siteFooter(S.footer);
+  document.body.append(footer.el);
   $('#topbar').append(langToggle(uiLang, (code) => { saveLang(code); applyLang(code); }, S.language));
   $('#share').hidden = typeof navigator.share !== 'function';
 

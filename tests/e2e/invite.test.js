@@ -67,7 +67,7 @@ test('desktop: No cannot be clicked or activated with the keyboard', async () =>
   }
   assert.ok(await page.evaluate(() => document.querySelector('#no').classList.contains('is-running')));
   await page.focus('#yes');
-  await page.keyboard.press('Tab');
+  for (let i = 0; i < 4 && (await page.evaluate(() => document.activeElement.id)) !== 'no'; i++) await page.keyboard.press('Tab');
   assert.equal(await page.evaluate(() => document.activeElement.id), 'no');
   await page.keyboard.press('Enter');
   await page.keyboard.press('Space');

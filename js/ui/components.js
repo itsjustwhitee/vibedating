@@ -142,3 +142,12 @@ export async function copyText(text) {
     return ok;
   }
 }
+
+export const REPO_URL = 'https://github.com/itsjustwhitee/vibedating';
+
+export function siteFooter(text) {
+  const label = h('span', {}, text);
+  const el = h('footer', { class: 'site-footer' }, icon('code', { size: 15 }), label, ' · ',
+    h('a', { href: REPO_URL, target: '_blank', rel: 'noopener noreferrer' }, 'GitHub'));
+  return { el, setText: (t) => { label.textContent = t; } };
+}

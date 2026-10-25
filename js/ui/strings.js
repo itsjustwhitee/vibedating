@@ -1,6 +1,7 @@
 const STRINGS = {
   it: {
     pageTitle: 'Una domanda per te 💌',
+    footer: 'Completamente open source, fatto per gioco',
     language: 'Lingua',
     landingTitle: 'Un invito a cena, chiuso in un link',
     landingText: 'Questa pagina fa una sola domanda, a una sola persona. Senza il link giusto resta un segreto.',
@@ -60,6 +61,7 @@ const STRINGS = {
   },
   en: {
     pageTitle: 'A question for you 💌',
+    footer: 'Fully open source, made for fun',
     language: 'Language',
     landingTitle: 'A dinner invitation, sealed in a link',
     landingText: 'This page asks one question, to one person. Without the right link it stays a secret.',
@@ -123,6 +125,8 @@ export const CREATE = {
   it: {
     home: 'Torna all’invito',
     title: 'Prepara il tuo invito',
+    footer: 'Completamente open source, fatto per gioco',
+    limitNote: 'È un servizio gratuito con un numero limitato di email al giorno: se non ti arriva nulla, riprova domani o scegli «Solo link».',
     lede: 'Cinque passi e hai un link da mandare. Niente account: tutto vive dentro il link.',
     stepOf: 'Passo {n} di 5',
     preview: 'Anteprima',
@@ -217,6 +221,8 @@ export const CREATE = {
   en: {
     home: 'Back to the invite',
     title: 'Make your invite',
+    footer: 'Fully open source, made for fun',
+    limitNote: 'It is a free service with a limited number of emails per day: if nothing arrives, try again tomorrow or pick “Link only”.',
     lede: 'Five steps and you have a link to send. No account: everything lives inside the link.',
     stepOf: 'Step {n} of 5',
     preview: 'Preview',
