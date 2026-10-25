@@ -1,0 +1,14 @@
+{
+  "name": "vibedating",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test \"tests/unit/*.test.js\"",
+    "e2e": "node --test \"tests/e2e/*.test.js\"",
+    "serve": "python3 -m http.server 8080",
+    "dev": "node dev/server.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.64.0"
+  }
+}

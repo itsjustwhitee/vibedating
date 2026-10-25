@@ -1,0 +1,129 @@
+/* landing / error */
+.screen-landing, .screen-error { text-align: center; }
+.screen-landing .seal, .screen-error .seal { margin-bottom: 18px; }
+.screen-landing .screen-foot { flex-wrap: wrap-reverse; justify-content: center; }
+.screen-error .screen-foot { justify-content: center; }
+.screen-error .screen-foot > :only-child { margin-left: 0; }
+
+/* places */
+.places { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.place { position: relative; }
+.place-pick {
+  appearance: none;
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  display: grid;
+  grid-template-columns: 52px 1fr;
+  gap: 14px;
+  align-items: center;
+  padding: 14px 16px;
+  border: 0;
+  border-radius: var(--r-item);
+  background: var(--paper-2);
+  box-shadow: inset 0 0 0 1.5px var(--line);
+  cursor: pointer;
+  transition: box-shadow 0.15s, background-color 0.15s, transform 0.15s;
+}
+.place-pick:hover { box-shadow: inset 0 0 0 1.5px var(--rose); }
+.place-pick:active { transform: scale(0.985); }
+.place-pick[aria-pressed='true'] {
+  box-shadow: inset 0 0 0 2.5px var(--primary), 0 10px 22px -14px var(--primary);
+  background: var(--paper);
+  animation: select 0.32s var(--ease-pop);
+}
+.place-check {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 26px;
+  height: 26px;
+  display: none;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--primary);
+  color: var(--primary-ink);
+}
+.place-check .icon { stroke-width: 2.5; }
+.place-pick[aria-pressed='true'] .place-check { display: grid; animation: pop 0.3s var(--ease-pop); }
+.place-pick[aria-pressed='true'] .place-body { padding-right: 26px; }
+@keyframes select {
+  40% { transform: scale(1.015); }
+}
+.place-emoji {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  font-size: 28px;
+  border-radius: 50%;
+  background: var(--paper);
+  box-shadow: inset 0 0 0 1.5px var(--line);
+}
+.place-pick[aria-pressed='true'] .place-emoji { background: var(--primary); box-shadow: none; }
+.place-body { display: grid; gap: 2px; min-width: 0; }
+.place-name { font-family: var(--display); font-size: 20px; line-height: 1.15; }
+.place-note { font-size: 15px; color: var(--ink-soft); line-height: 1.35; }
+.place-address { font-size: 13px; color: var(--ink-soft); }
+.place:has(.place-maps) .place-pick { padding-bottom: 42px; }
+.place-maps {
+  position: absolute;
+  left: 82px;
+  bottom: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
+  font-weight: 650;
+  text-underline-offset: 3px;
+}
+
+/* datetime */
+.date-long { font-family: var(--display); font-size: 22px; line-height: 1.2; color: var(--primary); margin-top: -6px; }
+.date-long::first-letter { text-transform: uppercase; }
+.date-long:empty { display: none; }
+.slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); }
+
+/* summary */
+.summary {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: var(--r-item);
+  background: var(--paper-2);
+}
+.summary-place { font-family: var(--display); font-weight: 400; font-size: 19px; line-height: 1.15; }
+.summary-sub { color: var(--ink-soft); font-size: 14px; }
+.summary-when { font-weight: 600; }
+.summary-when::first-letter { text-transform: uppercase; }
+
+/* sending */
+.sending { display: grid; justify-items: center; gap: 22px; padding: 24px 0 12px; text-align: center; }
+.sending h1 { font-size: 26px; }
+.plate { display: flex; gap: 14px; font-size: 34px; }
+.plate span { animation: bob 0.9s ease-in-out infinite alternate; }
+.plate span:nth-child(2) { animation-delay: 0.15s; }
+.plate span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes bob { to { transform: translateY(-10px); } }
+
+/* done */
+.screen-done { text-align: center; }
+.screen-done .seal { width: 104px; height: 104px; margin-bottom: 14px; transform: rotate(-10deg); animation: stamp 0.5s cubic-bezier(0.3, 1.5, 0.5, 1) 0.1s both; }
+.screen-done .screen-head p { color: var(--ink); font-size: 18px; }
+.screen-done .summary { text-align: left; }
+.screen-done .actions { margin-top: 18px; gap: 10px; }
+.fallback { margin-top: 14px; text-align: left; }
+@keyframes stamp {
+  from { transform: rotate(-30deg) scale(1.8); opacity: 0; }
+  to { transform: rotate(-10deg) scale(1); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plate span, .screen-done .seal, .place-pick[aria-pressed='true'] { animation: none; }
+}
+
+@media (min-width: 720px) {
+  .card { padding: 40px 40px 32px; }
+  .screen-question { padding: 52px 40px 44px; }
+}

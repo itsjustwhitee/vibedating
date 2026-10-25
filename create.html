@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Crea un invito 💌</title>
+  <meta name="description" content="Prepara un invito a cena da mandare con un link.">
+  <meta name="theme-color" content="#fbe8ec" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1d0d18" media="(prefers-color-scheme: dark)">
+  <meta property="og:title" content="Crea un invito 💌">
+  <meta property="og:image" content="assets/og.png">
+  <meta name="vibedating-api" content="">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caprasimo&display=swap">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/create.css">
+  <script type="module" src="js/create.js"></script>
+</head>
+<body>
+  <div class="topbar" id="topbar"></div>
+  <div class="builder">
+    <header class="builder-head">
+      <a class="brand" href="index.html" data-t-aria="home"><img src="assets/favicon.svg" alt="" width="44" height="44"></a>
+      <div>
+        <h1 data-t="title"></h1>
+        <p data-t="lede"></p>
+      </div>
+    </header>
+
+    <aside class="preview-pane" id="preview-pane">
+      <div class="preview-bar">
+        <span class="preview-label"><i data-icon="eye" data-size="18"></i><span data-t="preview"></span></span>
+        <button type="button" class="btn btn-ghost preview-close" id="preview-close" data-t-aria="previewClose"><i data-icon="x"></i></button>
+      </div>
+      <div class="card preview" id="preview" aria-hidden="true"></div>
+    </aside>
+
+    <form id="form" class="builder-form" novalidate>
+      <section class="card step" aria-labelledby="who-title">
+        <header class="step-head">
+          <span class="step-icon"><i data-icon="heart"></i></span>
+          <div>
+            <p class="step-kicker" data-step="1"></p>
+            <h2 id="who-title" data-t="whoTitle"></h2>
+            <p class="step-hint" data-t="whoHint"></p>
+          </div>
+        </header>
+        <div class="grid-2">
+          <div class="field">
+            <label class="field-label" for="to" data-t="toLabel"></label>
+            <input class="input" id="to" name="to" maxlength="40" data-t-ph="toPh" autocomplete="off">
+            <p class="field-error" id="to-err"></p>
+          </div>
+          <div class="field">
+            <label class="field-label" for="from" data-t="fromLabel"></label>
+            <input class="input" id="from" name="from" maxlength="40" data-t-ph="fromPh" autocomplete="off">
+            <p class="field-error" id="from-err"></p>
+          </div>
+        </div>
+        <details class="more" id="texts">
+          <summary><i data-icon="pen" data-size="18"></i><span data-t="texts"></span></summary>
+          <div class="more-body">
+            <p class="field-hint" data-t="textsHint"></p>
+            <div class="field">
+              <label class="field-label" for="q" data-t="qLabel"></label>
+              <textarea class="input" id="q" name="q" maxlength="140" rows="2"></textarea>
+              <p class="field-error" id="q-err"></p>
+            </div>
+            <div class="field">
+              <label class="field-label" for="done" data-t="doneLabel"></label>
+              <textarea class="input" id="done" name="done" maxlength="200" rows="2"></textarea>
+              <p class="field-error" id="done-err"></p>
+            </div>
+            <div class="field field-narrow">
+              <label class="field-label" for="lang" data-t="langLabel"></label>
+              <select class="input" id="lang" name="lang">
+                <option value="it" lang="it">Italiano</option>
+                <option value="en" lang="en">English</option>
+              </select>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <section class="card step" aria-labelledby="where-title">
+        <header class="step-head">
+          <span class="step-icon"><i data-icon="map-pin"></i></span>
+          <div>
+            <p class="step-kicker" data-step="2"></p>
+            <h2 id="where-title" data-t="whereTitle"></h2>
+            <p class="step-hint" data-t="whereHint"></p>
+          </div>
+        </header>
+        <ol class="place-rows" id="places"></ol>
+        <p class="field-error" id="places-err"></p>
+        <button type="button" class="btn btn-soft" id="add-place"><i data-icon="plus" data-size="18"></i><span data-t="addPlace"></span></button>
+      </section>
+
+      <section class="card step" aria-labelledby="when-title">
+        <header class="step-head">
+          <span class="step-icon"><i data-icon="clock"></i></span>
+          <div>
+            <p class="step-kicker" data-step="3"></p>
+            <h2 id="when-title" data-t="whenTitle"></h2>
+            <p class="step-hint" data-t="whenHint"></p>
+          </div>
+        </header>
+        <div class="field">
+          <span class="field-label" id="slots-label" data-t="slotsLabel"></span>
+          <div class="chips" id="slots" role="group" aria-labelledby="slots-label"></div>
+          <p class="field-error" id="slots-err"></p>
+        </div>
+        <div class="custom-slot">
+          <div class="field">
+            <label class="field-label" for="custom-slot" data-t="customSlot"></label>
+            <input class="input" id="custom-slot" type="time" step="300">
+          </div>
+          <button type="button" class="btn btn-soft" id="add-slot"><i data-icon="plus" data-size="18"></i><span data-t="addSlot"></span></button>
+        </div>
+        <details class="more" id="more-options">
+          <summary><i data-icon="sliders" data-size="18"></i><span data-t="moreOptions"></span></summary>
+          <div class="more-body grid-3">
+            <div class="field">
+              <label class="field-label" for="duration" data-t="durationLabel"></label>
+              <input class="input" id="duration" name="duration" type="number" min="30" max="360" step="15" value="120" inputmode="numeric">
+              <p class="field-error" id="duration-err"></p>
+            </div>
+            <div class="field">
+              <label class="field-label" for="days" data-t="daysLabel"></label>
+              <input class="input" id="days" name="days" type="number" min="1" max="180" value="60" inputmode="numeric">
+              <p class="field-error" id="days-err"></p>
+            </div>
+            <div class="field">
+              <label class="field-label" for="tz" data-t="tzLabel"></label>
+              <input class="input" id="tz" name="tz" value="Europe/Rome" autocomplete="off" spellcheck="false">
+              <p class="field-error" id="tz-err"></p>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <section class="card step" aria-labelledby="reply-title">
+        <header class="step-head">
+          <span class="step-icon"><i data-icon="mail"></i></span>
+          <div>
+            <p class="step-kicker" data-step="4"></p>
+            <h2 id="reply-title" data-t="replyTitle"></h2>
+            <p class="step-hint" data-t="replyHint"></p>
+          </div>
+        </header>
+        <div class="choices" id="choices" role="radiogroup" aria-labelledby="reply-title">
+          <label class="choice">
+            <input type="radio" name="delivery" value="email">
+            <span class="choice-icon"><i data-icon="mail"></i></span>
+            <span><strong data-t="deliveryEmail"></strong><small data-t="deliveryEmailHint"></small></span>
+          </label>
+          <label class="choice">
+            <input type="radio" name="delivery" value="link" checked>
+            <span class="choice-icon"><i data-icon="link"></i></span>
+            <span><strong data-t="deliveryLink"></strong><small data-t="deliveryLinkHint"></small></span>
+          </label>
+        </div>
+        <div class="field" id="owner-field">
+          <label class="field-label" for="owner" data-t="ownerLabel"></label>
+          <input class="input" id="owner" name="owner" type="email" autocomplete="email" data-t-ph="ownerPh">
+          <p class="field-hint" data-t="ownerHint"></p>
+          <p class="field-error" id="owner-err"></p>
+        </div>
+        <p class="note" id="link-only"><i data-icon="info" data-size="18"></i><span data-t="linkOnly"></span></p>
+        <p class="note" id="personal-note" hidden><i data-icon="key" data-size="18"></i><span data-t="personalNote"></span></p>
+        <details class="more" id="advanced">
+          <summary><i data-icon="key" data-size="18"></i><span data-t="advanced"></span></summary>
+          <div class="more-body">
+            <p class="field-hint" data-t="advancedHint"></p>
+            <div class="field" id="api-field">
+              <label class="field-label" for="api" data-t="apiLabel"></label>
+              <input class="input" id="api" name="api" type="url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" spellcheck="false">
+              <p class="field-error" id="api-err"></p>
+            </div>
+            <div class="field">
+              <label class="field-label" for="k" data-t="kLabel"></label>
+              <input class="input" id="k" name="k" type="password" autocomplete="off" spellcheck="false">
+              <p class="field-hint" data-t="kHint"></p>
+              <p class="field-error" id="k-err"></p>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <section class="card step" aria-labelledby="ready-title" aria-live="polite">
+        <header class="step-head">
+          <span class="step-icon"><i data-icon="sparkles"></i></span>
+          <div>
+            <p class="step-kicker" data-step="5"></p>
+            <h2 id="ready-title" data-t="readyTitle"></h2>
+            <p class="step-hint" data-t="readyHint"></p>
+          </div>
+        </header>
+        <p class="field-error" id="form-err"></p>
+        <button type="submit" class="btn btn-primary btn-block" id="build"></button>
+        <div class="result" id="result" hidden>
+          <label class="field-label" for="link" data-t="linkLabel"></label>
+          <textarea class="input link" id="link" readonly rows="3"></textarea>
+          <div class="result-actions">
+            <button type="button" class="btn btn-primary" id="copy"><i data-icon="copy" data-size="18"></i><span data-t="copy"></span></button>
+            <button type="button" class="btn btn-soft" id="share" hidden><i data-icon="share" data-size="18"></i><span data-t="share"></span></button>
+            <a class="btn btn-soft" id="open" target="_blank" rel="noopener"><i data-icon="eye" data-size="18"></i><span data-t="open"></span></a>
+          </div>
+        </div>
+        <p class="note sent" id="sent" role="status" hidden></p>
+      </section>
+    </form>
+
+    <button type="button" class="btn btn-primary preview-fab" id="preview-open"><i data-icon="eye" data-size="18"></i><span data-t="preview"></span></button>
+  </div>
+</body>
+</html>
