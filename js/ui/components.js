@@ -151,6 +151,12 @@ export async function copyText(text) {
   }
 }
 
+export function homeLink(text) {
+  const label = h('span', {}, text);
+  const el = h('a', { class: 'home-link', href: './' }, icon('arrow-left', { size: 16 }), label);
+  return { el, setText: (t) => { label.textContent = t; } };
+}
+
 export const REPO_URL = 'https://github.com/itsjustwhitee/vibedating';
 
 export function siteFooter(text) {

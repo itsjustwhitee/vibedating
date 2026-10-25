@@ -2,7 +2,7 @@ import { normalizeConfig, buildInviteUrl, ConfigError } from './config.js';
 import { postJson, createAttempt } from './api.js';
 import { isHttps, isEmail, isValidTime } from './validators.js';
 import { h, $, $$ } from './ui/dom.js';
-import { chip, iconButton, toast, copyText, fill, langToggle, siteFooter } from './ui/components.js';
+import { chip, iconButton, toast, copyText, fill, langToggle, siteFooter, homeLink } from './ui/components.js';
 import { icon } from './ui/icons.js';
 import { emojiPicker, suggestEmoji, DEFAULT_EMOJI } from './ui/emojiPicker.js';
 import { placeCombobox } from './ui/placeSearch.js';
@@ -38,6 +38,7 @@ let linkSeq = 0;
 let shownKey = '';
 let placeSeq = 0;
 let footer;
+let home;
 
 const DEFAULT = {
   to: '', from: '', q: '', done: '', lang: uiLang, duration: '120', days: '60', tz: 'Europe/Rome',
@@ -341,6 +342,7 @@ function applyLang(code) {
   document.title = `${S.title} 💌`;
   fill(document, S);
   footer?.setText(S.footer);
+  home?.setText(S.home);
   for (const el of $$('[data-step]')) el.textContent = t('stepOf', { n: el.dataset.step });
   if (places.length) renderPlaces(places);
   showErrors({ errs: {}, placeErrs: [] });
@@ -374,7 +376,8 @@ function init() {
   renderSlots();
   footer = siteFooter(S.footer);
   document.body.append(footer.el);
-  $('#topbar').append(langToggle(uiLang, (code) => { saveLang(code); applyLang(code); }, S.language));
+  home = homeLink(S.home);
+  $('#topbar').append(home.el, langToggle(uiLang, (code) => { saveLang(code); applyLang(code); }, S.language));
   $('#share').hidden = typeof navigator.share !== 'function';
 
   $('#add-place').addEventListener('click', () => {

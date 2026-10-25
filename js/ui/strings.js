@@ -26,7 +26,7 @@ const STRINGS = {
     fromLine: 'con affetto, {from}',
     yes: 'Sì',
     no: 'No',
-    dodges: ['Davvero?', 'Ripensaci 🥺', 'Eh no…', 'Mi scappa! 😜', 'Acchiappami', 'Quasi…', 'Ritenta', 'Niente da fare 🙈'],
+    dodges: ['Davvero?', 'Ripensaci 🥺', 'Eh no…', 'Piuttosto scappo 😜', 'Acchiappami', 'Quasi…', 'Ritenta', 'Niente da fare 🙈'],
     back: 'Indietro',
     next: 'Avanti',
     placesTitle: 'Dove andiamo?',
@@ -147,7 +147,7 @@ const STRINGS = {
 
 export const CREATE = {
   it: {
-    home: 'Torna all’invito',
+    home: 'Torna all’inizio',
     title: 'Prepara il tuo invito',
     footer: 'Open source su GitHub',
     lede: 'Cinque passi per un link da mandare. Nessun account, tutto resta dentro il link.',
@@ -243,7 +243,7 @@ export const CREATE = {
     },
   },
   en: {
-    home: 'Back to the invite',
+    home: 'Back to start',
     title: 'Make your invite',
     footer: 'Open source on GitHub',
     lede: 'Five steps to a link you can send. No account, everything stays inside the link.',

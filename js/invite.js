@@ -5,7 +5,7 @@ import { postJson, createAttempt, buildAcceptPayload } from './api.js';
 import { isEmail } from './validators.js';
 import { createFlow } from './state.js';
 import { h, $, mount } from './ui/dom.js';
-import { button, linkButton, chip, field, screen, seal, questionCard, hearts, downloadFile, note, iconRow, langToggle, siteFooter } from './ui/components.js';
+import { button, linkButton, chip, field, screen, seal, questionCard, hearts, downloadFile, note, iconRow, langToggle, siteFooter, homeLink } from './ui/components.js';
 import { icon } from './ui/icons.js';
 import { attachRunaway } from './ui/runaway.js';
 import { celebrate } from './ui/confetti.js';
@@ -42,12 +42,16 @@ function setLang(code) {
   document.documentElement.lang = code;
   document.title = s.pageTitle;
   footer?.setText(s.footer);
+  home?.setText(s.errorHome);
 }
 
+// Only the demo gets a way back: a real invite is meant to stay on its question.
+const isDemo = location.hash === new URL(demoUrl).hash;
 const footer = siteFooter(s.footer);
+const home = isDemo ? homeLink(s.errorHome) : null;
 setLang(lang);
 document.body.append(footer.el);
-background.after(h('div', { class: 'topbar' }, langToggle(lang, (code) => {
+background.after(h('div', { class: 'topbar' }, home?.el, langToggle(lang, (code) => {
   saveLang(code);
   setLang(code);
   rerender();
