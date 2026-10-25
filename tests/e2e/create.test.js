@@ -242,6 +242,25 @@ test('place search suggests places and fills name, address and maps link', async
   await context.close();
 });
 
+test('the address field searches too and fills an empty name', async () => {
+  const { context, page } = await open();
+  await mockPhoton(page, [photonFeature('Hideo Ramen', 'Via Milano', '3', 'Roma')]);
+  const address = page.locator('.place-row [data-key="address"]');
+  assert.equal(await address.isVisible(), true);
+  await page.fill('.place-row [data-key="name"]', '');
+  await address.fill('Via Milano 3');
+  await page.click('.suggest:not([hidden]) .suggest-opt >> nth=0');
+  assert.equal(await address.inputValue(), 'Via Milano 3, Roma');
+  assert.equal(await page.inputValue('.place-row [data-key="name"]'), 'Hideo Ramen');
+  assert.match(await page.inputValue('.place-row [data-key="maps"]'), /query=Hideo%20Ramen%2C%20Via%20Milano%203%2C%20Roma$/);
+
+  await page.fill('.place-row [data-key="name"]', 'Da Ciuchi');
+  await address.fill('Via Milano 3');
+  await page.click('.suggest:not([hidden]) .suggest-opt >> nth=0');
+  assert.equal(await page.inputValue('.place-row [data-key="name"]'), 'Da Ciuchi');
+  await context.close();
+});
+
 test('place search fails silently', async () => {
   const { context, page } = await open();
   await page.route(/photon\.komoot\.io/, (route) => route.abort());

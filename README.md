@@ -20,7 +20,7 @@ Tests: `npm test` (unit tests for the pure modules, the Apps Script code and the
 
 ## Making a link
 
-Open `create.html` and follow the five numbered steps: who it is for, where (places with emoji, note, address, Maps link; typing a name suggests matching places and fills address and Maps link, and the emoji button opens a small picker), when (time slots; duration, bookable days and time zone sit under "Altre opzioni"), how the answer reaches you, and create. The question, the message after the yes and the invite language are under "Personalizza i testi". Copy the link, share it, or open it to try it.
+Open `create.html` and follow the five numbered steps: who it is for, where (places with emoji, note, address, Maps link; typing a name or an address suggests matching places, and picking one fills the address, the Maps link and an empty name, and the emoji button opens a small picker), when (time slots; duration, bookable days and time zone sit under "Altre opzioni"), how the answer reaches you, and create. The question, the message after the yes and the invite language are under "Personalizza i testi". Copy the link, share it, or open it to try it.
 
 The whole invite is stored in the link fragment. Every text is configurable: `to`, `from`, `q` (question), `done` (message after the yes), `lang` (`it` or `en`). Both pages have an IT/EN switch for the viewer, remembered in local storage. When the site has a back end configured, its URL is not written into the link: the page reads it from its own meta tag.
 
@@ -57,7 +57,7 @@ The builder learns the link store from `<meta name="vibedating-links" content=""
 
 The configuration lives in the URL fragment (after `#`), which browsers do not send to the web server, so the static host never sees names, places or keys. Anyone who has the link can read its content, so share it only with the person you are inviting. With the optional link store, a short link's content is kept unencrypted on the store until it expires (one year by default): anyone with the short link, or with access to the store, can read it. Ids are random and not guessable. The builder remembers your last form in this browser's local storage, except the shared key.
 
-Place suggestions in the builder send what you type in the place name (from 3 characters) to [Photon](https://photon.komoot.io) (OpenStreetMap data). If the browser has already granted location access to the site, the approximate position is used to rank nearby results; the page never asks for it.
+Place suggestions in the builder send what you type in the place name or address (from 3 characters) to [Photon](https://photon.komoot.io) (OpenStreetMap data). If the browser has already granted location access to the site, the approximate position is used to rank nearby results; the page never asks for it.
 
 Link previews in chat apps only show a generic title ("Una domanda per te 💌") and a neutral image, so they do not spoil the surprise. For the preview image to appear, some apps need an absolute `og:image` URL: replace `assets/og.png` in `index.html` with the full URL of your deployment if you want it.
 

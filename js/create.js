@@ -96,16 +96,20 @@ function placeRow(p = {}) {
   });
   const autoEmoji = () => { if (!picked) emoji.set(suggestEmoji(inputs.name.value)); };
 
-  const nameField = field('name', null, { maxlength: 80, spellcheck: 'false', placeholder: S.placeNamePh }, (el) => placeCombobox(el, {
+  // Both the name and the address search places; a pick fills the address and the map link, and the name if empty.
+  const searchable = (fill) => (el) => placeCombobox(el, {
     lang: () => uiLang,
     label: S.suggestions,
+    fill,
     onPick: (place) => {
+      if (!inputs.name.value.trim()) inputs.name.value = place.name;
       inputs.address.value = place.address;
       inputs.maps.value = place.maps;
       autoEmoji();
       update();
     },
-  }).el);
+  }).el;
+  const nameField = field('name', null, { maxlength: 80, spellcheck: 'false', placeholder: S.placeNamePh }, searchable('name'));
   inputs.name.addEventListener('input', autoEmoji);
 
   const title = h('label', { class: 'field-label place-row-title', for: inputs.name.id });
@@ -117,11 +121,11 @@ function placeRow(p = {}) {
   row.append(
     h('div', { class: 'place-row-head' }, title, remove),
     h('div', { class: 'place-main' }, emoji.el, nameField),
+    field('address', S.placeAddress, { maxlength: 200, spellcheck: 'false', placeholder: S.placeAddressPh }, searchable('address')),
     field('note', S.placeNote, { maxlength: 140, placeholder: S.placeNotePh }),
     h('details', { class: 'place-more' },
       h('summary', {}, icon('map-pin', { size: 16 }), h('span', {}, S.placeDetails)),
       h('div', { class: 'place-more-body' },
-        field('address', S.placeAddress, { maxlength: 200, placeholder: S.placeAddressPh }),
         field('maps', S.placeMaps, { type: 'url', placeholder: 'https://maps.app.goo.gl/…', spellcheck: 'false' }))),
   );
 

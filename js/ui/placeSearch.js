@@ -54,8 +54,8 @@ export async function searchPlaces(q, { lang = 'it', signal } = {}) {
 
 let seq = 0;
 
-// Turns a text input into an ARIA combobox fed by Photon suggestions.
-export function placeCombobox(input, { lang, label, onPick }) {
+// Turns a text input into an ARIA combobox fed by Photon suggestions; `fill` is the part of the picked place written into it.
+export function placeCombobox(input, { lang, label, onPick, fill = 'name' }) {
   const id = `suggest-${++seq}`;
   const list = h('ul', { class: 'suggest', id, role: 'listbox', hidden: true });
   const wrap = h('div', { class: 'combo' }, input, list);
@@ -102,7 +102,7 @@ export function placeCombobox(input, { lang, label, onPick }) {
     const place = items[i];
     close();
     if (!place) return;
-    input.value = place.name;
+    input.value = place[fill] || place.name;
     onPick({ ...place, maps: mapsSearchUrl(place.name, place.address) });
   }
 
